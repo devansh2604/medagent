@@ -1,0 +1,1079 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>MedAgent — AI Healthcare System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+<style>
+  /* ── Reset & variables ─────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg0:      #080c10;
+    --bg1:      #0d1117;
+    --bg2:      #131920;
+    --bg3:      #1a2230;
+    --border:   #1f2d3d;
+    --border2:  #243242;
+    --text0:    #e8f0f8;
+    --text1:    #8fa8c0;
+    --text2:    #5a7590;
+    --accent:   #00c8ff;
+    --accent2:  #0088cc;
+    --green:    #00e676;
+    --yellow:   #ffd740;
+    --red:      #ff4444;
+    --red2:     #ff1744;
+    --purple:   #ce93d8;
+    --mono:     'Space Mono', monospace;
+    --sans:     'DM Sans', sans-serif;
+    --radius:   10px;
+    --shadow:   0 4px 24px rgba(0,0,0,0.5);
+  }
+
+  html, body {
+    height: 100%;
+    background: var(--bg0);
+    color: var(--text0);
+    font-family: var(--sans);
+    font-size: 14px;
+    overflow: hidden;
+  }
+
+  /* ── Layout ────────────────────────────────────────────────── */
+  #app {
+    display: grid;
+    grid-template-columns: 280px 1fr 300px;
+    grid-template-rows: 52px 1fr;
+    height: 100vh;
+    gap: 0;
+  }
+
+  /* ── Header ─────────────────────────────────────────────────── */
+  #header {
+    grid-column: 1 / -1;
+    background: var(--bg1);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    gap: 16px;
+  }
+  .logo-mark {
+    width: 30px; height: 30px;
+    background: var(--accent);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--bg0);
+    flex-shrink: 0;
+  }
+  .logo-text {
+    font-family: var(--mono);
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: var(--text0);
+  }
+  .logo-sub {
+    font-size: 11px;
+    color: var(--text2);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-family: var(--mono);
+  }
+  .header-sep { flex: 1; }
+  .header-pill {
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    border: 1px solid var(--border2);
+    color: var(--text2);
+    letter-spacing: 0.08em;
+  }
+  .status-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 6px var(--green);
+    display: inline-block;
+    margin-right: 6px;
+  }
+
+  /* ── Panels ─────────────────────────────────────────────────── */
+  .panel {
+    background: var(--bg1);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .panel:last-child { border-right: none; border-left: 1px solid var(--border); }
+
+  .panel-header {
+    padding: 14px 16px 12px;
+    border-bottom: 1px solid var(--border);
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text2);
+    flex-shrink: 0;
+  }
+
+  .panel-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  /* ── Scrollbar ───────────────────────────────────────────────── */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 4px; }
+
+  /* ── LEFT PANEL ─────────────────────────────────────────────── */
+  .field-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    color: var(--text2);
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .field-input {
+    width: 100%;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text0);
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 9px 12px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .field-input:focus { border-color: var(--accent); }
+  .field-input::placeholder { color: var(--text2); }
+
+  .section-title {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text2);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+
+  /* Tools */
+  .tool-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 10px 12px;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    transition: border-color 0.3s, background 0.3s;
+  }
+  .tool-card.active {
+    border-color: var(--accent);
+    background: rgba(0,200,255,0.05);
+  }
+  .tool-icon {
+    width: 28px; height: 28px;
+    background: var(--bg3);
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    font-size: 14px;
+  }
+  .tool-info { flex: 1; min-width: 0; }
+  .tool-name {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--text0);
+    white-space: normal;
+    word-break: break-all;
+    margin-bottom: 2px;
+  }
+  .tool-desc { font-size: 10px; color: var(--text2); line-height: 1.4; }
+  .tool-badge {
+    font-family: var(--mono);
+    font-size: 9px;
+    padding: 2px 7px;
+    border-radius: 20px;
+    flex-shrink: 0;
+    letter-spacing: 0.06em;
+  }
+  .tool-badge.idle { background: var(--bg3); color: var(--text2); }
+  .tool-badge.on   { background: rgba(0,200,255,0.15); color: var(--accent); border: 1px solid var(--accent); }
+  .tool-badge.done { background: rgba(0,230,118,0.12); color: var(--green); border: 1px solid var(--green); }
+
+  /* ── CENTER PANEL ────────────────────────────────────────────── */
+  #chat-panel {
+    display: flex;
+    flex-direction: column;
+    background: var(--bg0);
+    overflow: hidden;
+  }
+
+  #chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .msg {
+    display: flex;
+    gap: 10px;
+    max-width: 88%;
+    animation: fadeUp 0.25s ease;
+  }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .msg.user { align-self: flex-end; flex-direction: row-reverse; }
+  .msg.assistant { align-self: flex-start; }
+
+  .msg-avatar {
+    width: 30px; height: 30px;
+    border-radius: 8px;
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+  }
+  .msg.user .msg-avatar { background: var(--accent2); color: #fff; font-family: var(--mono); font-size: 11px; }
+  .msg.assistant .msg-avatar { background: linear-gradient(135deg, #0d3355, #00c8ff22); border: 1px solid var(--accent); font-size: 14px; }
+
+  .msg-bubble {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px 15px;
+    font-size: 13.5px;
+    line-height: 1.65;
+    color: var(--text0);
+  }
+  .msg.user .msg-bubble {
+    background: linear-gradient(135deg, #0a2a40, #0d3855);
+    border-color: var(--accent2);
+    color: var(--text0);
+  }
+  .msg-bubble p { margin: 0 0 8px; }
+  .msg-bubble p:last-child { margin: 0; }
+
+  /* Tool used indicator */
+  .tool-used-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-family: var(--mono);
+    font-size: 9px;
+    padding: 2px 8px;
+    border-radius: 20px;
+    background: rgba(0,200,255,0.08);
+    border: 1px solid rgba(0,200,255,0.2);
+    color: var(--accent);
+    margin-bottom: 6px;
+    margin-right: 4px;
+  }
+
+  /* Typing indicator */
+  #typing-indicator {
+    display: none;
+    align-self: flex-start;
+    margin-left: 40px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px 16px;
+    gap: 4px;
+    flex-direction: row;
+    align-items: center;
+  }
+  #typing-indicator.visible { display: flex; }
+  .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--text2);
+    animation: bounce 1.2s infinite;
+  }
+  .dot:nth-child(2) { animation-delay: 0.2s; }
+  .dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes bounce {
+    0%,80%,100% { transform: scale(0.6); opacity: 0.4; }
+    40%          { transform: scale(1); opacity: 1; }
+  }
+
+  /* Quick prompts */
+  #quick-prompts {
+    padding: 12px 20px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    background: var(--bg1);
+  }
+  .qp-btn {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    color: var(--text1);
+    font-size: 12px;
+    padding: 5px 12px;
+    cursor: pointer;
+    transition: all 0.18s;
+    white-space: nowrap;
+  }
+  .qp-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(0,200,255,0.06); }
+
+  /* Input area */
+  #input-area {
+    padding: 14px 20px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 10px;
+    background: var(--bg1);
+  }
+  #msg-input {
+    flex: 1;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text0);
+    font-family: var(--sans);
+    font-size: 13.5px;
+    padding: 10px 14px;
+    outline: none;
+    resize: none;
+    height: 42px;
+    transition: border-color 0.2s, height 0.15s;
+  }
+  #msg-input:focus { border-color: var(--accent); }
+  #msg-input::placeholder { color: var(--text2); }
+  #send-btn {
+    background: var(--accent);
+    border: none;
+    border-radius: var(--radius);
+    color: var(--bg0);
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 700;
+    padding: 0 18px;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.1s;
+    letter-spacing: 0.05em;
+    flex-shrink: 0;
+  }
+  #send-btn:hover { opacity: 0.85; }
+  #send-btn:active { transform: scale(0.97); }
+  #send-btn:disabled { opacity: 0.4; cursor: default; }
+
+  /* ── RIGHT PANEL ─────────────────────────────────────────────── */
+  .patient-section {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px;
+  }
+  .patient-section-title {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    color: var(--text2);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .tag-list { display: flex; flex-wrap: wrap; gap: 5px; }
+  .tag {
+    font-size: 11px;
+    padding: 3px 9px;
+    border-radius: 20px;
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    color: var(--text1);
+    line-height: 1.4;
+  }
+  .tag.symptom { border-color: #1a3d5c; color: #6ab0e0; }
+  .tag.med     { border-color: #1a3a2a; color: #5cb87a; }
+  .tag.history { border-color: #3a2a1a; color: #c8956a; }
+  .patient-field {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 4px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+  }
+  .patient-field:last-child { border-bottom: none; }
+  .pf-label { color: var(--text2); font-family: var(--mono); font-size: 10px; }
+  .pf-value { color: var(--text0); font-weight: 500; text-align: right; max-width: 140px; }
+
+  /* Lab results */
+  .lab-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 5px 0;
+    border-bottom: 1px solid var(--border);
+    gap: 8px;
+  }
+  .lab-row:last-child { border-bottom: none; }
+  .lab-name { font-size: 11px; color: var(--text1); flex: 1; }
+  .lab-val  { font-family: var(--mono); font-size: 11px; font-weight: 700; }
+  .lab-badge {
+    font-family: var(--mono);
+    font-size: 9px;
+    padding: 2px 7px;
+    border-radius: 20px;
+    text-transform: uppercase;
+    flex-shrink: 0;
+  }
+  .lab-badge.normal        { background: rgba(0,230,118,0.1); color: var(--green); border: 1px solid rgba(0,230,118,0.25); }
+  .lab-badge.high          { background: rgba(255,68,68,0.1); color: var(--red); border: 1px solid rgba(255,68,68,0.25); }
+  .lab-badge.low           { background: rgba(255,215,64,0.1); color: var(--yellow); border: 1px solid rgba(255,215,64,0.25); }
+  .lab-badge.critical_high { background: rgba(255,23,68,0.15); color: var(--red2); border: 1px solid rgba(255,23,68,0.4); }
+  .lab-badge.critical_low  { background: rgba(255,23,68,0.15); color: var(--red2); border: 1px solid rgba(255,23,68,0.4); }
+  .lab-val.normal        { color: var(--green); }
+  .lab-val.high          { color: var(--red); }
+  .lab-val.low           { color: var(--yellow); }
+  .lab-val.critical_high { color: var(--red2); }
+  .lab-val.critical_low  { color: var(--red2); }
+
+  /* Vector DB stats */
+  .stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 5px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+  }
+  .stat-row:last-child { border-bottom: none; }
+  .stat-label { color: var(--text2); font-family: var(--mono); font-size: 10px; }
+  .stat-val   { font-family: var(--mono); font-size: 12px; color: var(--accent); }
+
+  /* Empty states */
+  .empty-state {
+    text-align: center;
+    padding: 16px 8px;
+    color: var(--text2);
+    font-size: 12px;
+    font-style: italic;
+  }
+
+  /* Error */
+  .error-banner {
+    background: rgba(255,68,68,0.08);
+    border: 1px solid rgba(255,68,68,0.2);
+    border-radius: var(--radius);
+    padding: 10px 14px;
+    color: var(--red);
+    font-size: 12px;
+    margin-top: 8px;
+    display: none;
+  }
+  .error-banner.visible { display: block; }
+
+  /* Welcome screen */
+  .welcome-msg {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    gap: 12px;
+    padding: 40px 20px;
+    text-align: center;
+    color: var(--text2);
+  }
+  .welcome-icon { font-size: 48px; }
+  .welcome-title {
+    font-family: var(--mono);
+    font-size: 15px;
+    color: var(--text1);
+    letter-spacing: 0.06em;
+  }
+  .welcome-sub { font-size: 12px; line-height: 1.7; max-width: 340px; }
+
+  /* Grid line background effect */
+  #chat-messages::before {
+    content: '';
+    position: fixed;
+    inset: 52px 280px 0 280px;
+    background-image:
+      linear-gradient(rgba(0,200,255,0.02) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,200,255,0.02) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+  #chat-messages > * { position: relative; z-index: 1; }
+
+  /* ── Report Analyser (OpenCV + Vision) ────────────────── */
+  #report-btn {
+    width: 100%;
+    padding: 10px 12px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text1);
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    transition: all 0.18s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  #report-btn:hover:not(:disabled) {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(0,200,255,0.06);
+  }
+  #report-btn:disabled { opacity: 0.5; cursor: progress; }
+  #report-btn.processing {
+    border-color: var(--yellow);
+    color: var(--yellow);
+    animation: rpt-pulse 1.1s infinite;
+  }
+  @keyframes rpt-pulse {
+    0%,100% { box-shadow: 0 0 0 0 rgba(255,215,64,0.3); }
+    50%      { box-shadow: 0 0 0 5px rgba(255,215,64,0); }
+  }
+  #report-file-input { display: none; }
+</style>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ── Header ────────────────────────────────────────── -->
+  <header id="header">
+    <div class="logo-mark">M+</div>
+    <div>
+      <div class="logo-text">MedAgent</div>
+      <div class="logo-sub">AI Healthcare System</div>
+    </div>
+    <div class="header-sep"></div>
+    <div class="header-pill"><span class="status-dot"></span>GPT-4o-mini</div>
+    <div class="header-pill">ChromaDB</div>
+    <div class="header-pill" id="model-pill">tool_choice: auto</div>
+  </header>
+
+  <!-- ── LEFT PANEL ─────────────────────────────────────── -->
+  <aside class="panel">
+    <div class="panel-header">Configuration</div>
+    <div class="panel-body">
+
+      <div>
+        <div class="field-label">OpenAI API Key</div>
+        <input class="field-input" type="password" id="api-key" placeholder="sk-..." />
+      </div>
+
+      <div>
+        <div class="field-label">Patient ID</div>
+        <input class="field-input" type="text" id="patient-id" placeholder="e.g. P001 or your name" />
+      </div>
+
+      <div id="err-banner" class="error-banner"></div>
+
+      <div>
+        <div class="section-title">Active Tools</div>
+
+        <div style="display:flex;flex-direction:column;gap:8px;">
+
+          <div class="tool-card" id="tool-patient">
+            <div class="tool-icon">📋</div>
+            <div class="tool-info">
+              <div class="tool-name">patient_record_tool</div>
+              <div class="tool-desc">Add / update patient records in memory & ChromaDB</div>
+            </div>
+            <span class="tool-badge idle" id="badge-patient">idle</span>
+          </div>
+
+          <div class="tool-card" id="tool-rag">
+            <div class="tool-icon">🔍</div>
+            <div class="tool-info">
+              <div class="tool-name">rag_search_patients</div>
+              <div class="tool-desc">Semantic vector search across all records</div>
+            </div>
+            <span class="tool-badge idle" id="badge-rag">idle</span>
+          </div>
+
+          <div class="tool-card" id="tool-lab">
+            <div class="tool-icon">🧬</div>
+            <div class="tool-info">
+              <div class="tool-name">lab_test_analysis_tool</div>
+              <div class="tool-desc">Store & analyze lab results with normal ranges</div>
+            </div>
+            <span class="tool-badge idle" id="badge-lab">idle</span>
+          </div>
+
+          <div class="tool-card" id="tool-list-all">
+            <div class="tool-icon">📄</div>
+            <div class="tool-info">
+              <div class="tool-name">list_all_patients</div>
+              <div class="tool-desc">Fetch every patient name + ID from ChromaDB</div>
+            </div>
+            <span class="tool-badge idle" id="badge-list-all">idle</span>
+          </div>
+
+          <div class="tool-card" id="tool-delete">
+            <div class="tool-icon">🗑️</div>
+            <div class="tool-info">
+              <div class="tool-name">delete_patients_tool</div>
+              <div class="tool-desc">Delete one, a range, or all patients</div>
+            </div>
+            <span class="tool-badge idle" id="badge-delete">idle</span>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ── Report Analyser (OpenCV + Vision) ── -->
+      <div>
+        <div class="section-title">📄 Report Analyser</div>
+        <button id="report-btn" onclick="document.getElementById('report-file-input').click()">
+          📥 Upload Report (Image / PDF)
+        </button>
+        <input type="file" id="report-file-input" accept="image/*,application/pdf" onchange="analyzeReport(this)" />
+        <div style="font-size:10px;color:var(--text2);margin-top:6px;line-height:1.4;">
+          Image → OpenCV preprocess + GPT-4o Vision<br>
+          PDF → text extraction → sent to chat agent
+        </div>
+      </div>
+
+    </div>
+  </aside>
+
+  <!-- ── CENTER PANEL ─────────────────────────────────────── -->
+  <main id="chat-panel">
+    <div id="chat-messages">
+      <div class="welcome-msg" id="welcome">
+        <div class="welcome-icon">🏥</div>
+        <div class="welcome-title">Welcome to MedAgent</div>
+        <div class="welcome-sub">
+          Enter your OpenAI API key and patient ID on the left to get started.
+          I can help with symptoms, lab results, patient records, and medical questions.
+        </div>
+      </div>
+    </div>
+
+    <div id="typing-indicator">
+      <div class="dot"></div>
+      <div class="dot"></div>
+      <div class="dot"></div>
+    </div>
+
+    <div id="quick-prompts">
+      <button class="qp-btn" onclick="sendQuick('I have a fever and sore throat')">🌡️ Fever & sore throat</button>
+      <button class="qp-btn" onclick="sendQuick('Find patients with diabetes')">🔍 Find diabetes patients</button>
+      <button class="qp-btn" onclick="sendQuick('My glucose is 180, creatinine 1.8, hemoglobin 10')">🧬 Enter lab values</button>
+      <button class="qp-btn" onclick="sendQuick('Analyze my lab results')">📊 Analyze my labs</button>
+    </div>
+
+    <div id="input-area">
+      <textarea id="msg-input" placeholder="Describe your symptoms, ask a medical question, or search patients…" rows="1"></textarea>
+      <button id="send-btn" onclick="sendMessage()">SEND</button>
+    </div>
+  </main>
+
+  <!-- ── RIGHT PANEL ─────────────────────────────────────── -->
+  <aside class="panel" style="border-right:none;border-left:1px solid var(--border);">
+    <div class="panel-header">Patient Dashboard</div>
+    <div class="panel-body">
+
+      <!-- Patient info -->
+      <div class="patient-section" id="patient-section">
+        <div class="patient-section-title">Patient Record</div>
+        <div id="patient-info"><div class="empty-state">No patient record yet</div></div>
+      </div>
+
+      <!-- Symptoms / Meds -->
+      <div class="patient-section" id="tags-section" style="display:none;">
+        <div class="patient-section-title">Symptoms</div>
+        <div class="tag-list" id="symptoms-tags"></div>
+        <div class="patient-section-title" style="margin-top:10px;">Medications</div>
+        <div class="tag-list" id="meds-tags"></div>
+        <div class="patient-section-title" style="margin-top:10px;">History</div>
+        <div class="tag-list" id="history-tags"></div>
+      </div>
+
+      <!-- Lab results -->
+      <div class="patient-section">
+        <div class="patient-section-title">Lab Results</div>
+        <div id="lab-panel"><div class="empty-state">No lab results yet</div></div>
+      </div>
+
+      <!-- Vector DB stats -->
+      <div class="patient-section">
+        <div class="patient-section-title">Vector DB Stats</div>
+        <div id="db-stats">
+          <div class="stat-row"><span class="stat-label">Total Records</span><span class="stat-val" id="stat-records">—</span></div>
+          <div class="stat-row"><span class="stat-label">Dimensions</span><span class="stat-val" id="stat-dims">384</span></div>
+          <div class="stat-row"><span class="stat-label">Similarity</span><span class="stat-val" id="stat-sim">cosine</span></div>
+          <div class="stat-row"><span class="stat-label">Model</span><span class="stat-val" id="stat-model">MiniLM-L6</span></div>
+        </div>
+      </div>
+
+    </div>
+  </aside>
+
+</div>
+
+<script>
+const API = 'http://localhost:8080';
+
+// ── State ─────────────────────────────────────────────
+let busy = false;
+
+// ── Helpers ───────────────────────────────────────────
+function getKey()       { return document.getElementById('api-key').value.trim(); }
+function getPatientId() { return document.getElementById('patient-id').value.trim() || 'default'; }
+
+function showError(msg) {
+  const b = document.getElementById('err-banner');
+  b.textContent = msg;
+  b.classList.add('visible');
+  setTimeout(() => b.classList.remove('visible'), 6000);
+}
+
+function setTyping(on) {
+  document.getElementById('typing-indicator').classList.toggle('visible', on);
+  document.getElementById('send-btn').disabled = on;
+}
+
+function scrollBottom() {
+  const el = document.getElementById('chat-messages');
+  el.scrollTop = el.scrollHeight;
+}
+
+function nl2p(text) {
+  return text.split('\n').filter(l => l.trim()).map(l => `<p>${escHtml(l)}</p>`).join('');
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── Tool badge management ─────────────────────────────
+const TOOL_MAP = {
+  'patient_record_tool':      { card: 'tool-patient',    badge: 'badge-patient'    },
+  'rag_search_patients':      { card: 'tool-rag',        badge: 'badge-rag'        },
+  'lab_test_analysis_tool':   { card: 'tool-lab',        badge: 'badge-lab'        },
+  'list_all_patients':        { card: 'tool-list-all',   badge: 'badge-list-all'   },
+  'delete_patients_tool':     { card: 'tool-delete', badge: 'badge-delete' },
+};
+
+function resetBadges() {
+  for (const k in TOOL_MAP) {
+    const { card, badge } = TOOL_MAP[k];
+    document.getElementById(card).classList.remove('active');
+    const b = document.getElementById(badge);
+    b.className = 'tool-badge idle';
+    b.textContent = 'idle';
+  }
+}
+
+function setToolActive(toolName) {
+  const m = TOOL_MAP[toolName];
+  if (!m) return;
+  document.getElementById(m.card).classList.add('active');
+  const b = document.getElementById(m.badge);
+  b.className = 'tool-badge on';
+  b.textContent = 'ON';
+}
+
+function setToolDone(toolName) {
+  const m = TOOL_MAP[toolName];
+  if (!m) return;
+  document.getElementById(m.card).classList.remove('active');
+  const b = document.getElementById(m.badge);
+  b.className = 'tool-badge done';
+  b.textContent = 'done';
+}
+
+// ── Append message ────────────────────────────────────
+function appendMsg(role, content, toolsUsed) {
+  const welcome = document.getElementById('welcome');
+  if (welcome) welcome.remove();
+
+  const msgs = document.getElementById('chat-messages');
+
+  const div = document.createElement('div');
+  div.className = `msg ${role}`;
+
+  const avatar = document.createElement('div');
+  avatar.className = 'msg-avatar';
+  avatar.textContent = role === 'user' ? 'YOU' : '🏥';
+
+  const bubble = document.createElement('div');
+  bubble.className = 'msg-bubble';
+
+  if (toolsUsed && toolsUsed.length > 0) {
+    const tagsHtml = toolsUsed.map(t =>
+      `<span class="tool-used-tag">⚡ ${escHtml(t)}</span>`
+    ).join('');
+    bubble.innerHTML = `<div style="margin-bottom:6px;">${tagsHtml}</div>` + nl2p(content);
+  } else {
+    bubble.innerHTML = nl2p(content);
+  }
+
+  div.appendChild(avatar);
+  div.appendChild(bubble);
+  msgs.appendChild(div);
+  scrollBottom();
+}
+
+// ── Send message ──────────────────────────────────────
+async function sendMessage() {
+  if (busy) return;
+  const key = getKey();
+  const pid = getPatientId();
+  const input = document.getElementById('msg-input');
+  const msg = input.value.trim();
+
+  if (!key)  { showError('Please enter your OpenAI API key.'); return; }
+  if (!msg)  { return; }
+
+  busy = true;
+  input.value = '';
+  input.style.height = '42px';
+
+  appendMsg('user', msg);
+  setTyping(true);
+  resetBadges();
+
+  // Flash tools as "active" while waiting
+  const flashTimers = [];
+  const toolNames = Object.keys(TOOL_MAP);
+
+  try {
+    const res = await fetch(`${API}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ api_key: key, patient_id: pid, message: msg }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      showError(data.error || 'Server error.');
+      return;
+    }
+
+    // Mark used tools as done
+    if (data.tools_called && data.tools_called.length > 0) {
+      data.tools_called.forEach(t => setToolDone(t));
+    }
+
+    appendMsg('assistant', data.reply, data.tools_called || []);
+
+    if (data.patient_record) renderPatient(data.patient_record);
+    if (data.lab_results)    renderLabs(data.lab_results);
+
+    fetchStats();
+
+  } catch (e) {
+    showError('Cannot reach server. Is server.py running on port 8080?');
+  } finally {
+    setTyping(false);
+    busy = false;
+  }
+}
+
+function sendQuick(text) {
+  document.getElementById('msg-input').value = text;
+  sendMessage();
+}
+
+// ── Enter key ─────────────────────────────────────────
+document.getElementById('msg-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+});
+// Auto-resize textarea
+document.getElementById('msg-input').addEventListener('input', function() {
+  this.style.height = '42px';
+  this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+});
+
+// ── Render patient dashboard ──────────────────────────
+function renderPatient(rec) {
+  const info = document.getElementById('patient-info');
+  const fields = [
+    ['ID',       rec.patient_id],
+    ['Name',     rec.name],
+    ['Age',      rec.age],
+    ['Gender',   rec.gender],
+    ['Diagnosis',rec.diagnosis],
+    ['Allergies',rec.allergies],
+  ];
+  info.innerHTML = fields.map(([l,v]) => `
+    <div class="patient-field">
+      <span class="pf-label">${l}</span>
+      <span class="pf-value">${escHtml(String(v||'—'))}</span>
+    </div>`).join('');
+
+  // Tags
+  const tagsSection = document.getElementById('tags-section');
+  tagsSection.style.display = 'block';
+
+  function makeTags(text, cls) {
+    if (!text || text === 'None') return '<div class="empty-state">—</div>';
+    return text.split(',').map(t => t.trim()).filter(Boolean)
+      .map(t => `<span class="tag ${cls}">${escHtml(t)}</span>`).join('');
+  }
+  document.getElementById('symptoms-tags').innerHTML  = makeTags(rec.symptoms, 'symptom');
+  document.getElementById('meds-tags').innerHTML      = makeTags(rec.medications, 'med');
+  document.getElementById('history-tags').innerHTML   = makeTags(rec.medical_history, 'history');
+}
+
+// ── Render lab panel ──────────────────────────────────
+function renderLabs(labs) {
+  const panel = document.getElementById('lab-panel');
+  if (!labs || Object.keys(labs).length === 0) {
+    panel.innerHTML = '<div class="empty-state">No lab results yet</div>';
+    return;
+  }
+  const statusLabel = { normal:'Normal', high:'High', low:'Low', critical_high:'CRITICAL ↑', critical_low:'CRITICAL ↓' };
+  panel.innerHTML = Object.entries(labs).map(([key, info]) => {
+    const name   = info.name || key;
+    const val    = info.value;
+    const status = info.status || 'normal';
+    const unit   = info.unit || '';
+    const label  = statusLabel[status] || status;
+    return `
+    <div class="lab-row">
+      <span class="lab-name">${escHtml(name)}</span>
+      <span class="lab-val ${status}">${val} <small style="font-size:9px;font-weight:400;">${escHtml(unit)}</small></span>
+      <span class="lab-badge ${status}">${label}</span>
+    </div>`;
+  }).join('');
+}
+
+// ── Vector DB stats ───────────────────────────────────
+async function fetchStats() {
+  try {
+    const r = await fetch(`${API}/api/rag/stats`);
+    const d = await r.json();
+    document.getElementById('stat-records').textContent = d.total_records ?? '—';
+    document.getElementById('stat-dims').textContent    = d.vector_dims   ?? '384';
+    document.getElementById('stat-sim').textContent     = d.similarity_metric ?? 'cosine';
+    document.getElementById('stat-model').textContent   = (d.model || 'MiniLM-L6').replace('all-','').replace('-v2','');
+  } catch(e) { /* server not ready */ }
+}
+
+// Load stats on page load
+fetchStats();
+setInterval(fetchStats, 15000);
+
+// ── Report Analyser (OpenCV + GPT-4o Vision / pypdf) ──
+async function analyzeReport(fileInput) {
+  const file = fileInput.files[0];
+  if (!file) return;
+  fileInput.value = '';
+
+  const isPdf   = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+  const isImage = file.type.startsWith('image/');
+  if (!isPdf && !isImage) {
+    showError('Unsupported file type. Please upload an image or a PDF.');
+    return;
+  }
+
+  const key = getKey();
+  if (isImage && !key) {
+    showError('OpenAI API key required to analyse image reports.');
+    return;
+  }
+
+  const btn = document.getElementById('report-btn');
+  btn.disabled = true;
+  btn.classList.add('processing');
+  const origLabel = btn.textContent;
+  btn.textContent = isPdf ? '📄 Reading PDF…' : '🔬 OpenCV + Vision…';
+
+  try {
+    // Read file as base64 (data-URL form, server strips the prefix)
+    const b64 = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload  = e => resolve(e.target.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
+    appendMsg('user', `📎 Uploaded report: ${file.name}`);
+    setTyping(true);
+
+    const res = await fetch(`${API}/api/analyze-report`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({
+        type:    isPdf ? 'pdf' : 'image',
+        file:    b64,
+        api_key: key,
+      }),
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      showError(data.error || 'Report analysis failed.');
+      return;
+    }
+
+    const text   = (data.extracted_text || '').trim();
+    const method = data.method === 'pdf_text' ? 'PDF text extraction' : 'OpenCV + GPT-4o Vision';
+
+    if (!text) {
+      appendMsg('assistant', '⚠️ No text could be extracted from this report.');
+      return;
+    }
+
+    // Brief confirmation in chat
+    appendMsg('assistant',
+      `✅ Report extracted via ${method}. Sending to MedAgent for analysis…`,
+      [data.method]
+    );
+
+    // Auto-feed the extracted content into the chat agent
+    const autoMsg =
+      `I'm uploading my medical report. Please analyse it, extract any lab values, ` +
+      `store relevant data, and summarise the findings.\n\n` +
+      `--- REPORT CONTENT ---\n${text}\n--- END REPORT ---`;
+
+    await new Promise(r => setTimeout(r, 400));
+    document.getElementById('msg-input').value = autoMsg;
+    await sendMessage();
+  } catch (e) {
+    showError('Report analysis error: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.classList.remove('processing');
+    btn.textContent = origLabel;
+    setTyping(false);
+  }
+}
+</script>
+
+</body>
+</html>

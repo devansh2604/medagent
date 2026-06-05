@@ -1,0 +1,31 @@
+# Virtual environment
+venv/
+env/
+.env/
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+
+# ChromaDB data (local vector store)
+chroma/
+chroma_backup_*/
+
+# Secrets / env
+.env
+*.env
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
