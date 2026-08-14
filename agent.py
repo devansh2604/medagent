@@ -290,10 +290,31 @@ TOOLS = [
     },
 ]
 
+# ── Demo mode ─────────────────────────────────────────────────────────────────
+# Off by default: running locally keeps every tool available. A public
+# deployment sets DEMO_MODE=true so visitors cannot wipe the database.
+DEMO_MODE = os.environ.get("DEMO_MODE", "").strip().lower() in ("1", "true", "yes", "on")
+DESTRUCTIVE_TOOLS = {"delete_patients_tool"}
+
+
+def active_tools() -> list[dict]:
+    if not DEMO_MODE:
+        return TOOLS
+    return [t for t in TOOLS if t["function"]["name"] not in DESTRUCTIVE_TOOLS]
+
+
 # ── Tool executor ─────────────────────────────────────────────────────────────
 
 def _execute_tool(name: str, args: dict) -> str:
     """Run the named tool and return a JSON string result."""
+
+    # Defence in depth: even if the model somehow calls it, refuse in demo mode.
+    if DEMO_MODE and name in DESTRUCTIVE_TOOLS:
+        return json.dumps({
+            "status": "error",
+            "message": "Deleting records is disabled in the public demo. "
+                       "Run MedAgent locally to use this tool.",
+        })
 
     # ── Tool 1: patient_record_tool ──────────────────────────────────────────
     if name == "patient_record_tool":
@@ -577,7 +598,15 @@ def run_agent(api_key: str, patient_id: str, message: str, history: list[dict]) 
     """
     client = OpenAI(api_key=api_key, timeout=60.0, max_retries=1)
 
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    system_prompt = SYSTEM_PROMPT
+    if DEMO_MODE:
+        system_prompt += (
+            "\n\nDEMO MODE: deletion is disabled. You do NOT have delete_patients_tool — "
+            "you have the other 5 tools only. If asked to delete anything, explain that "
+            "deletion is disabled in the public demo and suggest running MedAgent locally."
+        )
+
+    messages = [{"role": "system", "content": system_prompt}]
     messages += history
     messages.append({"role": "user", "content": message})
 
@@ -591,7 +620,7 @@ def run_agent(api_key: str, patient_id: str, message: str, history: list[dict]) 
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=messages,
-            tools=TOOLS,
+            tools=active_tools(),
             tool_choice="auto",
             temperature=0.4,
             max_tokens=4096,

@@ -709,12 +709,20 @@
     <div class="panel-header">Configuration</div>
     <div class="panel-body">
 
-      <div>
+      <div id="api-key-group">
         <div class="field-label">OpenAI API Key
           <a href="#" onclick="clearSavedKey();return false;" style="float:right;color:var(--text2);font-size:9px;text-decoration:none;">clear</a>
         </div>
         <input class="field-input" type="password" id="api-key" placeholder="sk-..." />
         <div class="hint">Saved in this browser only</div>
+      </div>
+
+      <div id="demo-notice" style="display:none;">
+        <div class="field-label">Live Demo</div>
+        <div class="hint">
+          Running on a shared key — no sign-up needed. Deletion is disabled and
+          usage is rate limited. Clone the repo to run it locally with all tools.
+        </div>
       </div>
 
       <div>
@@ -892,7 +900,9 @@
 </div>
 
 <script>
-const API = 'http://localhost:8080';
+// Relative to whatever host serves this page, so the same file works
+// on localhost and on a deployed URL.
+const API = '';
 
 // ── State ─────────────────────────────────────────────
 let busy = false;
@@ -1022,7 +1032,7 @@ async function sendMessage() {
   const input = document.getElementById('msg-input');
   const msg = input.value.trim();
 
-  if (!key)  { showError('Please enter your OpenAI API key.'); return; }
+  if (!key && !DEMO_MODE) { showError('Please enter your OpenAI API key.'); return; }
   if (!msg)  { return; }
 
   // Extra safety net: deleting the whole database needs a browser confirm too
@@ -1202,6 +1212,23 @@ async function fetchStats() {
   } catch(e) { /* server not ready */ }
 }
 
+// ── Runtime config (local vs public demo) ─────────────
+let DEMO_MODE = false;
+
+async function loadConfig() {
+  try {
+    const r = await fetch(`${API}/api/config`);
+    const c = await r.json();
+    DEMO_MODE = !!c.demo_mode;
+    if (DEMO_MODE) {
+      // The server holds the key; asking visitors for one would be wrong.
+      document.getElementById('api-key-group').style.display = 'none';
+      document.getElementById('demo-notice').style.display   = 'block';
+      document.getElementById('tool-delete').style.display   = 'none';
+    }
+  } catch(e) { /* keep local defaults */ }
+}
+
 // ── Patient browser ───────────────────────────────────
 let ALL_PATIENTS = [];
 let SELECTED_PID  = null;  // survives re-renders from filtering / polling
@@ -1294,7 +1321,8 @@ async function fetchAnalytics() {
   } catch(e) { /* server not ready */ }
 }
 
-// Load stats on page load
+// Load config + stats on page load
+loadConfig();
 fetchStats();
 fetchAnalytics();
 loadPatientBrowser();
@@ -1316,7 +1344,7 @@ async function analyzeReport(fileInput) {
   }
 
   const key = getKey();
-  if (isImage && !key) {
+  if (isImage && !key && !DEMO_MODE) {
     showError('OpenAI API key required to analyse image reports.');
     return;
   }
