@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
+import json
 import os
 import base64
 import agent
@@ -15,8 +16,29 @@ import cv_engine
 app = Flask(__name__, static_folder=".")
 CORS(app)
 
-# Per-session conversation history (in-memory, keyed by patient_id)
-SESSION_HISTORY: dict[str, list[dict]] = {}
+# Per-session conversation history, persisted to disk so the agent
+# remembers conversations across server restarts.
+_SESSION_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "session_history.json")
+
+def _load_sessions() -> dict:
+    if os.path.exists(_SESSION_PATH):
+        try:
+            with open(_SESSION_PATH, "r") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+    return {}
+
+def _save_sessions() -> None:
+    tmp_path = _SESSION_PATH + ".tmp"
+    try:
+        with open(tmp_path, "w") as f:
+            json.dump(SESSION_HISTORY, f, indent=2)
+        os.replace(tmp_path, _SESSION_PATH)
+    except Exception as e:
+        print(f"[WARN] Could not save session_history.json: {e}")
+
+SESSION_HISTORY: dict[str, list[dict]] = _load_sessions()
 
 
 # ── Routes ─────────────────────────────────────────────────────────────────────
@@ -58,12 +80,19 @@ def chat():
     if len(history) > 40:
         SESSION_HISTORY[patient_id] = history[-40:]
 
+    _save_sessions()
+
     return jsonify(result)
 
 
 @app.route("/api/rag/stats", methods=["GET"])
 def rag_stats():
     return jsonify(rag.get_stats())
+
+
+@app.route("/api/analytics", methods=["GET"])
+def analytics():
+    return jsonify(rag.get_aggregate_stats())
 
 
 @app.route("/api/patient/<patient_id>", methods=["GET"])
@@ -85,6 +114,31 @@ def get_lab(patient_id: str):
 @app.route("/api/patients", methods=["GET"])
 def list_patients():
     return jsonify({"patients": list(agent.PATIENT_STORE.keys()), "count": len(agent.PATIENT_STORE)})
+
+
+@app.route("/api/patients/full", methods=["GET"])
+def list_patients_full():
+    """All patient records with full fields, for the UI patient browser."""
+    patients = rag.get_all_patients()
+    return jsonify({"patients": patients, "count": len(patients)})
+
+
+@app.route("/api/lab/<patient_id>/analyzed", methods=["GET"])
+def get_lab_analyzed(patient_id: str):
+    """Latest lab entry classified against normal ranges (same shape as /api/chat's lab_results)."""
+    labs = agent.LAB_STORE.get(patient_id)
+    if not labs:
+        return jsonify({"error": f"No lab results for patient '{patient_id}'."}), 404
+    latest = labs[-1]
+    analyzed = {}
+    for k, v in latest.items():
+        if k == "timestamp":
+            continue
+        try:
+            analyzed[k] = agent._classify_value(k, float(v))
+        except (ValueError, TypeError):
+            pass
+    return jsonify(analyzed)
 
 
 @app.route("/api/analyze-report", methods=["POST"])

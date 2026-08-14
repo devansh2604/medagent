@@ -220,6 +220,14 @@ TOOLS = [
                         "items": {"type": "string"},
                         "description": "Required for action='bulk'. List of exact SEED-xxx patient_id strings.",
                     },
+                    "confirm": {
+                        "type": "boolean",
+                        "description": (
+                            "Required true for action='all'. Set true ONLY if the user's "
+                            "LATEST message explicitly confirms wiping all records "
+                            "(e.g. 'yes, delete everything'). Never set true preemptively."
+                        ),
+                    },
                 },
                 "required": ["action"],
             },
@@ -266,6 +274,18 @@ TOOLS = [
                 },
                 "required": ["action", "patient_id"],
             },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "patient_analytics_tool",
+            "description": (
+                "Aggregate statistics across ALL patients: counts by diagnosis, "
+                "gender distribution, average age, and age range. "
+                "Use when the user asks for stats, counts, demographics, averages, or breakdowns."
+            ),
+            "parameters": {"type": "object", "properties": {}},
         },
     },
 ]
@@ -377,6 +397,13 @@ def _execute_tool(name: str, args: dict) -> str:
             })
 
         elif action == "all":
+            if args.get("confirm") is not True:
+                return json.dumps({
+                    "status": "confirmation_required",
+                    "message": "Refused: deleting ALL records requires confirm=true, which may "
+                               "only be set after the user explicitly confirms in their latest "
+                               "message. Ask the user to confirm first.",
+                })
             deleted_count = rag.delete_all_patients()
             PATIENT_STORE.clear()
             LAB_STORE.clear()
@@ -384,6 +411,11 @@ def _execute_tool(name: str, args: dict) -> str:
             return json.dumps({"status": "success", "message": "All patient records deleted.", "deleted_count": deleted_count})
 
         return json.dumps({"status": "error", "message": "Unknown action. Use 'single', 'bulk', or 'all'."})
+
+    # ── Tool 6: patient_analytics_tool ───────────────────────────────────────
+    elif name == "patient_analytics_tool":
+        stats = rag.get_aggregate_stats()
+        return json.dumps({"status": "success", "analytics": stats})
 
     # ── Tool 5: lab_test_analysis_tool ───────────────────────────────────────
     elif name == "lab_test_analysis_tool":
@@ -475,12 +507,13 @@ def _execute_tool(name: str, args: dict) -> str:
 
 SYSTEM_PROMPT = """You are MedAgent — a compassionate, knowledgeable medical AI assistant.
 
-YOUR TOOLS — you have exactly these 5 tools, no more, no less:
+YOUR TOOLS — you have exactly these 6 tools, no more, no less:
   1. patient_record_tool   — get full record, add, or update a patient
   2. rag_search_patients   — semantic search by symptoms / condition / similarity
   3. list_all_patients     — returns ALL patients with name, id, age, gender, diagnosis
   4. delete_patients_tool  — delete one patient, a range of patients, or all patients
   5. lab_test_analysis_tool — store / analyze / history for lab results
+  6. patient_analytics_tool — aggregate stats: counts by diagnosis, gender split, average age
 
 WHEN TO CALL EACH TOOL:
 - patient_record_tool (action=get)    → user asks for details/full record/history of a specific patient.
@@ -492,7 +525,8 @@ WHEN TO CALL EACH TOOL:
 - patient_record_tool (action=add)    → user gives name, age, gender, symptoms to register a new patient
 - patient_record_tool (action=update) → user gives an updated field for an existing patient
 - rag_search_patients                 → user says find, search, similar, who has, patients with
-- list_all_patients                   → user says "list all patients", "show all", OR asks for stats, counts, average age, demographics
+- list_all_patients                   → user says "list all patients", "show all"
+- patient_analytics_tool              → user asks for stats, counts, "how many patients have X", average age, demographics, breakdowns
 - delete_patients_tool                → any deletion request; choose the right action:
     action='single'  → "delete patient X" — pass patient_id
     action='bulk'    → "delete patients 50-100" or a group — WORKFLOW:
@@ -500,14 +534,15 @@ WHEN TO CALL EACH TOOL:
                          Step 2: extract the IDs at the requested list positions
                          Step 3: call delete_patients_tool(action='bulk', patient_ids=[...real IDs...])
                          NEVER pass position numbers like "100" — always pass real SEED-xxx IDs
-    action='all'     → "delete everything" / "wipe all" — ONLY after user explicitly confirms
+    action='all'     → "delete everything" / "wipe all" — first ask the user to confirm; only when
+                       their LATEST message explicitly confirms, call again with confirm=true
 - lab_test_analysis_tool (action=store)   → user provides lab values
 - lab_test_analysis_tool (action=analyze) → user asks about their current/latest lab results
 - lab_test_analysis_tool (action=history) → user asks about trends, changes, "how many times", "has X changed", "compare", "over time", "previous results"
   The history response includes a "trends" object with per-metric: readings count, times_changed, trend direction, first/latest values, delta. Use this to answer trend questions precisely.
 
 NO TOOL NEEDED — answer directly:
-- "what tools do you have" / "list your tools" / "what can you do" → list all 5 tools above by name, no tool call
+- "what tools do you have" / "list your tools" / "what can you do" → list all 6 tools above by name, no tool call
 - Diagnosis reasoning → use medical knowledge, always say "possible" or "suspected"
 - Mental health support → read emotional tone, respond with empathy
 - CRISIS SIGNALS (suicide, self-harm, hopelessness) → immediately say "Please call or text 988 (Suicide & Crisis Lifeline) — you are not alone."
