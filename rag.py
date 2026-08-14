@@ -165,8 +165,8 @@ def get_aggregate_stats() -> dict:
         dx = record.get("diagnosis") or "Unknown"
         diagnoses[dx] += 1
 
-        g = record.get("gender") or ""
-        if g and g != "N/A":
+        g = (record.get("gender") or "").strip().capitalize()
+        if g and g != "N/a":
             genders[g] += 1
 
         try:

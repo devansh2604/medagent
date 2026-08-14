@@ -1151,9 +1151,13 @@ async function fetchAnalytics() {
       panel.innerHTML = '<div class="empty-state">No patients yet</div>';
       return;
     }
+    // jsonify sorts dict keys alphabetically, so re-sort by count here
     const genders = Object.entries(d.by_gender || {})
+      .sort((a, b) => b[1] - a[1])
       .map(([g, n]) => `${escHtml(g)}: ${n}`).join(' · ');
-    const top = Object.entries(d.by_diagnosis || {}).slice(0, 5);
+    const top = Object.entries(d.by_diagnosis || {})
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5);
     const maxCount = top.length ? top[0][1] : 1;
     const bars = top.map(([dx, n]) => `
       <div class="dx-row">
