@@ -4,11 +4,16 @@ Uses ChromaDB's built-in sentence-transformers embeddings (no OpenAI key needed)
 """
 from __future__ import annotations
 
+import os
 import chromadb
 from collections import Counter
 
 # ── ChromaDB client & collection ──────────────────────────────────────────────
-_client = chromadb.PersistentClient(path="./chroma")
+# Anchored to this file, not the working directory, so the store is always the
+# same place however the app is launched (python server.py, gunicorn, a
+# different cwd) — and so the boot-time restore targets the right directory.
+DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "chroma")
+_client = chromadb.PersistentClient(path=DB_PATH)
 
 _collection = _client.get_or_create_collection(
     name="patient_records",

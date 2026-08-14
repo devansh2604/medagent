@@ -10,7 +10,32 @@ import json
 import os
 import time
 import threading
+import shutil
 import base64
+
+# ── Restore the prebuilt demo database ────────────────────────────────────────
+# Must run BEFORE importing rag, which opens the ChromaDB client at import time.
+# Hosts with an ephemeral disk start with an empty vector store; copying the
+# shipped database takes milliseconds, whereas re-embedding every record takes
+# minutes on a small instance and starves the web workers.
+
+_BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+def _restore_demo_db_if_empty() -> None:
+    live = os.path.join(_BASE_DIR, "chroma")
+    seed = os.path.join(_BASE_DIR, "chroma_seed")
+    if not os.path.isdir(seed):
+        return
+    if os.path.isdir(live) and os.listdir(live):
+        return
+    try:
+        shutil.copytree(seed, live, dirs_exist_ok=True)
+        print("[boot] Restored prebuilt demo database from chroma_seed/")
+    except Exception as e:
+        print(f"[WARN] Could not restore demo database: {e}")
+
+_restore_demo_db_if_empty()
+
 import agent
 import rag
 import cv_engine

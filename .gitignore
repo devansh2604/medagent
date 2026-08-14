@@ -15,7 +15,10 @@ __pycache__/
 dist/
 build/
 
-# ChromaDB data (local vector store)
+# ChromaDB data (local vector store).
+# chroma_seed/ is deliberately NOT ignored: it is the prebuilt demo database
+# shipped with the repo so an ephemeral host can restore it instantly instead
+# of re-embedding every record on boot.
 chroma/
 chroma_backup_*/
 
