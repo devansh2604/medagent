@@ -9,6 +9,7 @@ from flask_cors import CORS
 import json
 import os
 import time
+import threading
 import base64
 import agent
 import rag
@@ -67,15 +68,33 @@ def _resolve_api_key(client_key: str) -> tuple[str, str | None]:
     return client_key, None
 
 
+SEED_STATUS = {"running": False, "done": False, "error": None}
+
 def _maybe_seed_on_boot() -> None:
-    """Hosts with an ephemeral disk lose ChromaDB on redeploy; refill it."""
+    """
+    Hosts with an ephemeral disk lose ChromaDB on redeploy; refill it.
+
+    Runs on a background thread: seeding downloads the embedding model and
+    embeds every record, which takes minutes. Doing that inline would delay
+    binding the port, and the platform kills a service that does not listen
+    quickly ("No open ports detected").
+    """
     if SEED_ON_BOOT <= 0:
         return
-    try:
-        import seed_database
-        seed_database.seed_database(SEED_ON_BOOT)
-    except Exception as e:
-        print(f"[WARN] Seed on boot failed: {e}")
+
+    def _run() -> None:
+        SEED_STATUS["running"] = True
+        try:
+            import seed_database
+            seed_database.seed_database(SEED_ON_BOOT)
+            SEED_STATUS["done"] = True
+        except Exception as e:
+            SEED_STATUS["error"] = str(e)
+            print(f"[WARN] Seed on boot failed: {e}")
+        finally:
+            SEED_STATUS["running"] = False
+
+    threading.Thread(target=_run, name="seed-on-boot", daemon=True).start()
 
 _maybe_seed_on_boot()
 
@@ -154,6 +173,13 @@ def chat():
     _save_sessions()
 
     return jsonify(result)
+
+
+@app.route("/healthz", methods=["GET"])
+def healthz():
+    """Liveness probe. Returns OK as soon as the app is listening, even while
+    the background seed is still running."""
+    return jsonify({"status": "ok", "seeding": SEED_STATUS}), 200
 
 
 @app.route("/api/config", methods=["GET"])
