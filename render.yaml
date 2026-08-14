@@ -6,7 +6,11 @@ services:
     name: medagent
     runtime: python
     plan: free
-    buildCommand: pip install -r requirements.txt
+    # Warm the ONNX embedding model during the build so the first search on a
+    # cold instance does not pay for a 79MB download.
+    buildCommand: |
+      pip install -r requirements.txt
+      python -c "import chromadb; c = chromadb.EphemeralClient().get_or_create_collection('warmup'); c.add(ids=['1'], documents=['warm up the embedding model']); print('embedding model cached')"
     # One worker keeps the in-memory rate limiter accurate and fits the
     # free tier's memory budget. The long timeout allows for multi-step
     # agent loops that make several OpenAI calls.
@@ -16,8 +20,12 @@ services:
         value: "3.11"
       - key: DEMO_MODE
         value: "true"
+      # The prebuilt chroma_seed/ database is restored on boot, so generating
+      # records by embedding is only a fallback. 0 = off.
       - key: SEED_ON_BOOT
-        value: "90"
+        value: "0"
+      - key: HEALTH_CHECK_PATH
+        value: "/healthz"
       - key: RATE_LIMIT_PER_HOUR
         value: "30"
       - key: OPENAI_API_KEY
