@@ -581,6 +581,34 @@
     50%      { box-shadow: 0 0 0 5px rgba(255,215,64,0); }
   }
   #report-file-input { display: none; }
+
+  /* ── Responsive ─────────────────────────────────────────────── */
+  @media (max-width: 1150px) {
+    #app { grid-template-columns: 240px 1fr 260px; }
+    #chat-messages::before { inset: 52px 260px 0 240px; }
+  }
+  @media (max-width: 900px) {
+    html, body { overflow: auto; }
+    #app {
+      display: flex;
+      flex-direction: column;
+      height: auto;
+      min-height: 100vh;
+    }
+    #header { position: sticky; top: 0; z-index: 10; }
+    .panel, .panel:last-child {
+      border-right: none;
+      border-left: none;
+      border-bottom: 1px solid var(--border);
+      overflow: visible;
+    }
+    .panel-body { overflow: visible; }
+    #chat-panel {
+      min-height: 75vh;
+      border-bottom: 1px solid var(--border);
+    }
+    #chat-messages::before { display: none; }
+  }
 </style>
 </head>
 <body>
