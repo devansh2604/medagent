@@ -120,7 +120,9 @@ TOOLS = [
                 "Manages patient records in memory and ChromaDB. "
                 "Use action='get' to fetch a patient's full record by patient_id. "
                 "Use action='add' to create a new patient record. "
-                "Use action='update' to modify a specific field of an existing record."
+                "Use action='update' to save new details onto an existing record — pass any of "
+                "name/age/gender/symptoms/medical_history/medications/allergies/diagnosis directly "
+                "(several at once is fine)."
             ),
             "parameters": {
                 "type": "object",
@@ -134,14 +136,14 @@ TOOLS = [
                         "type": "string",
                         "description": "Unique patient ID. For 'add', leave blank to auto-generate. For 'update', required.",
                     },
-                    "name":           {"type": "string"},
-                    "age":            {"type": "integer"},
-                    "gender":         {"type": "string"},
-                    "symptoms":       {"type": "string", "description": "Comma-separated list of symptoms."},
-                    "medical_history":{"type": "string"},
-                    "medications":    {"type": "string"},
-                    "allergies":      {"type": "string"},
-                    "diagnosis":      {"type": "string", "description": "Suspected or confirmed diagnosis."},
+                    "name":           {"type": "string",  "description": "Patient's full name. Include whenever known."},
+                    "age":            {"type": "integer", "description": "Age in years. Include whenever the user states it."},
+                    "gender":         {"type": "string",  "description": "Gender. Include whenever the user states it."},
+                    "symptoms":       {"type": "string",  "description": "Comma-separated symptoms. Include EVERY symptom the user mentions."},
+                    "medical_history":{"type": "string",  "description": "Past conditions, surgeries, family history."},
+                    "medications":    {"type": "string",  "description": "Comma-separated current medications with doses."},
+                    "allergies":      {"type": "string",  "description": "Known allergies, or 'None'."},
+                    "diagnosis":      {"type": "string",  "description": "Suspected or confirmed diagnosis."},
                     "update_field":   {"type": "string", "description": "Field name to update (for action='update')."},
                     "update_value":   {"type": "string", "description": "New value for the field (for action='update')."},
                 },
@@ -333,7 +335,13 @@ def _execute_tool(name: str, args: dict) -> str:
             return json.dumps({"status": "success", "action": "get", "patient_id": pid, "record": record})
 
         if action == "add":
-            pid = args.get("patient_id") or f"P{uuid.uuid4().hex[:6].upper()}"
+            pid = (args.get("patient_id") or "").strip() or f"P{uuid.uuid4().hex[:6].upper()}"
+            # 'add' creates; it must never clobber someone else's record.
+            # If the id is already taken, assign a fresh one instead.
+            reassigned_from = None
+            if pid in PATIENT_STORE or rag.get_patient(pid):
+                reassigned_from = pid
+                pid = f"P{uuid.uuid4().hex[:6].upper()}"
             record = {
                 "patient_id": pid,
                 "name":            args.get("name", "Unknown"),
@@ -347,19 +355,44 @@ def _execute_tool(name: str, args: dict) -> str:
             }
             PATIENT_STORE[pid] = record
             rag.upsert_patient(pid, record)
-            return json.dumps({"status": "success", "action": "add", "patient_id": pid, "record": record})
+            out = {"status": "success", "action": "add", "patient_id": pid, "record": record}
+            if reassigned_from:
+                out["note"] = (f"Patient id '{reassigned_from}' was already taken, so this "
+                               f"patient was registered as '{pid}'. Tell the user their new ID.")
+            return json.dumps(out)
 
         elif action == "update":
             pid = args.get("patient_id")
-            if not pid or pid not in PATIENT_STORE:
+            record = PATIENT_STORE.get(pid) or rag.get_patient(pid) if pid else None
+            if not record:
                 return json.dumps({"status": "error", "message": f"Patient {pid} not found."})
+            PATIENT_STORE[pid] = record
+
+            changed = {}
+
+            # Named fields, so several details can be saved in one call.
+            for key in ("name", "age", "gender", "symptoms",
+                        "medical_history", "medications", "allergies", "diagnosis"):
+                if key in args and args[key] not in (None, ""):
+                    record[key] = args[key]
+                    changed[key] = args[key]
+
+            # Single-field form (update_field / update_value).
             field = args.get("update_field")
-            value = args.get("update_value")
-            if not field:
-                return json.dumps({"status": "error", "message": "update_field is required for action='update'."})
-            PATIENT_STORE[pid][field] = value
-            rag.upsert_patient(pid, PATIENT_STORE[pid])
-            return json.dumps({"status": "success", "action": "update", "patient_id": pid, "field": field, "new_value": value})
+            if field:
+                record[field] = args.get("update_value")
+                changed[field] = args.get("update_value")
+
+            if not changed:
+                return json.dumps({
+                    "status": "error",
+                    "message": "Nothing to update. Pass the fields to change "
+                               "(e.g. age, gender, symptoms) or update_field/update_value.",
+                })
+
+            rag.upsert_patient(pid, record)
+            return json.dumps({"status": "success", "action": "update",
+                               "patient_id": pid, "updated": changed, "record": record})
 
         return json.dumps({"status": "error", "message": "Unknown action."})
 
@@ -543,8 +576,17 @@ WHEN TO CALL EACH TOOL:
     Step 2: call patient_record_tool(action='get', patient_id=<real ID from step 1>)
   This 2-step flow is REQUIRED — never skip step 2, it loads the full record into the dashboard.
   If the patient_id is already known (user said the ID directly), skip step 1.
-- patient_record_tool (action=add)    → user gives name, age, gender, symptoms to register a new patient
-- patient_record_tool (action=update) → user gives an updated field for an existing patient
+- patient_record_tool (action=add)    → user asks to register/admit/add a new patient, or introduces
+  themselves as a new patient. Do not stall: a name alone is enough to create the record.
+  CRITICAL: pass EVERY detail the user has given anywhere in this conversation as arguments —
+  name, age, gender, symptoms, medications, allergies, medical_history. Fields you omit are stored
+  blank, and the dashboard will show them blank. Never describe details in your reply that you did
+  not actually pass to the tool. Do NOT pass patient_id — one is generated; tell the user what it is.
+- patient_record_tool (action=update) → MANDATORY whenever the user states ANY clinical detail about
+  the current patient: age, gender, symptoms, medications, allergies, history or diagnosis. Save them
+  with ONE update call containing every field they mentioned. This applies even when symptoms sound
+  urgent — RECORD FIRST, then give your advice in the same reply. Never answer with advice alone and
+  leave the record unchanged: the dashboard only shows what you actually save.
 - rag_search_patients                 → user says find, search, similar, who has, patients with
 - list_all_patients                   → user says "list all patients", "show all"
 - patient_analytics_tool              → user asks for stats, counts, "how many patients have X", average age, demographics, breakdowns
@@ -599,6 +641,23 @@ def run_agent(api_key: str, patient_id: str, message: str, history: list[dict]) 
     client = OpenAI(api_key=api_key, timeout=60.0, max_retries=1)
 
     system_prompt = SYSTEM_PROMPT
+
+    # Tell the model who is on screen. Without this it cannot tell an existing
+    # patient from a new one, so it creates duplicates instead of updating.
+    active = PATIENT_STORE.get(patient_id) or (rag.get_patient(patient_id) if patient_id else None)
+    if active:
+        system_prompt += (
+            f"\n\nACTIVE PATIENT (currently open in the dashboard):\n"
+            f"  patient_id: {active.get('patient_id')}\n"
+            f"  name: {active.get('name')} | age: {active.get('age')} | gender: {active.get('gender')}\n"
+            f"  symptoms: {active.get('symptoms')}\n"
+            f"  medications: {active.get('medications')} | allergies: {active.get('allergies')}\n"
+            f"  diagnosis: {active.get('diagnosis')}\n"
+            "When the user speaks about themselves or gives new details, they mean THIS patient. "
+            f"Save changes with patient_record_tool(action='update', patient_id='{active.get('patient_id')}', ...). "
+            "Do NOT create a new record for them."
+        )
+
     if DEMO_MODE:
         system_prompt += (
             "\n\nDEMO MODE: deletion is disabled. You do NOT have delete_patients_tool — "
@@ -644,7 +703,15 @@ def run_agent(api_key: str, patient_id: str, message: str, history: list[dict]) 
 
             # Inject session patient_id only for tools that actually use it
             TOOLS_USING_PATIENT_ID = {"patient_record_tool", "lab_test_analysis_tool"}
-            if tool_name in TOOLS_USING_PATIENT_ID and not tool_args.get("patient_id"):
+            # Never inject the session id into an 'add'. The box holds whatever
+            # the user typed — or the id of a patient they clicked in the browser —
+            # so injecting it would file the new patient under a junk id, or
+            # overwrite the record that id belongs to.
+            is_add = (tool_name == "patient_record_tool"
+                      and tool_args.get("action") == "add")
+            if (tool_name in TOOLS_USING_PATIENT_ID
+                    and not tool_args.get("patient_id")
+                    and not is_add):
                 tool_args["patient_id"] = patient_id
 
             result = _execute_tool(tool_name, tool_args)

@@ -1077,7 +1077,17 @@ async function sendMessage() {
 
     appendMsg('assistant', data.reply, data.tools_called || []);
 
-    if (data.patient_record) renderPatient(data.patient_record);
+    if (data.patient_record) {
+      renderPatient(data.patient_record);
+      // Follow the patient the agent just created or loaded, so the box never
+      // holds stale text that could be mistaken for a real patient id.
+      const pid = data.patient_record.patient_id;
+      if (pid) {
+        document.getElementById('patient-id').value = pid;
+        localStorage.setItem('medagent_patient_id', pid);
+        SELECTED_PID = pid;
+      }
+    }
     if (data.lab_results)    renderLabs(data.lab_results);
 
     // A deleted patient must not stay on the dashboard
