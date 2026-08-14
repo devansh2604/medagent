@@ -584,8 +584,11 @@
     <div class="panel-body">
 
       <div>
-        <div class="field-label">OpenAI API Key</div>
+        <div class="field-label">OpenAI API Key
+          <a href="#" onclick="clearSavedKey();return false;" style="float:right;color:var(--text2);font-size:9px;text-decoration:none;">clear</a>
+        </div>
         <input class="field-input" type="password" id="api-key" placeholder="sk-..." />
+        <div style="font-size:9px;color:var(--text2);margin-top:4px;">Saved in this browser only</div>
       </div>
 
       <div>
@@ -748,6 +751,24 @@ let busy = false;
 // ── Helpers ───────────────────────────────────────────
 function getKey()       { return document.getElementById('api-key').value.trim(); }
 function getPatientId() { return document.getElementById('patient-id').value.trim() || 'default'; }
+
+// ── Persist config across refreshes (stored only in this browser) ──
+(function restoreConfig() {
+  const key = localStorage.getItem('medagent_api_key');
+  const pid = localStorage.getItem('medagent_patient_id');
+  if (key) document.getElementById('api-key').value = key;
+  if (pid) document.getElementById('patient-id').value = pid;
+})();
+document.getElementById('api-key').addEventListener('input', function() {
+  localStorage.setItem('medagent_api_key', this.value.trim());
+});
+document.getElementById('patient-id').addEventListener('input', function() {
+  localStorage.setItem('medagent_patient_id', this.value.trim());
+});
+function clearSavedKey() {
+  localStorage.removeItem('medagent_api_key');
+  document.getElementById('api-key').value = '';
+}
 
 function showError(msg) {
   const b = document.getElementById('err-banner');
