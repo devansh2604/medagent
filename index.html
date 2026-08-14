@@ -1070,6 +1070,11 @@ async function sendMessage() {
     if (data.patient_record) renderPatient(data.patient_record);
     if (data.lab_results)    renderLabs(data.lab_results);
 
+    // A deleted patient must not stay on the dashboard
+    if ((data.tools_called || []).includes('delete_patients_tool')) {
+      await clearDashboardIfPatientGone();
+    }
+
     fetchStats();
     fetchAnalytics();
     loadPatientBrowser();
@@ -1103,6 +1108,7 @@ document.getElementById('msg-input').addEventListener('input', function() {
 // ── Render patient dashboard ──────────────────────────
 function renderPatient(rec) {
   const info = document.getElementById('patient-info');
+  DISPLAYED_PID = rec.patient_id || null;
   const age    = rec.age    && rec.age    !== 'N/A' ? rec.age : null;
   const gender = rec.gender && rec.gender !== 'N/A' ? String(rec.gender) : null;
   const sub    = [age ? `${escHtml(String(age))} yrs` : null,
@@ -1134,6 +1140,31 @@ function renderPatient(rec) {
   document.getElementById('symptoms-tags').innerHTML  = makeTags(rec.symptoms, 'symptom');
   document.getElementById('meds-tags').innerHTML      = makeTags(rec.medications, 'med');
   document.getElementById('history-tags').innerHTML   = makeTags(rec.medical_history, 'history');
+}
+
+// ── Clear the dashboard ───────────────────────────────
+// Called when the patient on screen no longer exists, so a deleted
+// patient's record and lab values can't linger in the panel.
+function clearPatientDashboard() {
+  DISPLAYED_PID = null;
+  SELECTED_PID  = null;
+  document.getElementById('patient-info').innerHTML =
+    '<div class="empty-state">No patient record yet</div>';
+  document.getElementById('tags-section').style.display = 'none';
+  renderLabs(null);
+  document.querySelectorAll('.pb-item.selected').forEach(x => x.classList.remove('selected'));
+  const pidInput = document.getElementById('patient-id');
+  pidInput.value = '';
+  localStorage.removeItem('medagent_patient_id');
+}
+
+// After a deletion, drop the dashboard if the patient it shows is gone.
+async function clearDashboardIfPatientGone() {
+  if (!DISPLAYED_PID) return;
+  try {
+    const r = await fetch(`${API}/api/patient/${encodeURIComponent(DISPLAYED_PID)}`);
+    if (r.status === 404) clearPatientDashboard();
+  } catch(e) { /* leave the panel alone if the check itself fails */ }
 }
 
 // ── Render lab panel ──────────────────────────────────
@@ -1173,7 +1204,8 @@ async function fetchStats() {
 
 // ── Patient browser ───────────────────────────────────
 let ALL_PATIENTS = [];
-let SELECTED_PID = null;   // survives re-renders from filtering / polling
+let SELECTED_PID  = null;  // survives re-renders from filtering / polling
+let DISPLAYED_PID = null;  // whose record the dashboard is currently showing
 
 async function loadPatientBrowser() {
   try {
