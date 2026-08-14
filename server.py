@@ -152,7 +152,7 @@ def analyze_report():
         cleaned_data_url, metrics = cv_engine.preprocess_report_image(raw_bytes)
 
         from openai import OpenAI
-        client = OpenAI(api_key=api_key)
+        client = OpenAI(api_key=api_key, timeout=60.0, max_retries=1)
 
         prompt = (
             "You are extracting content from a medical report image that has already "

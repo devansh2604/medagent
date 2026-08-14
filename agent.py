@@ -540,7 +540,7 @@ def run_agent(api_key: str, patient_id: str, message: str, history: list[dict]) 
     -------
     dict with keys: reply, patient_record, lab_results, tools_called
     """
-    client = OpenAI(api_key=api_key)
+    client = OpenAI(api_key=api_key, timeout=60.0, max_retries=1)
 
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
     messages += history
