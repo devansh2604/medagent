@@ -8,6 +8,7 @@ from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import json
 import os
+import time
 import base64
 import agent
 import rag
@@ -15,6 +16,68 @@ import cv_engine
 
 app = Flask(__name__, static_folder=".")
 CORS(app)
+
+
+# ── Deployment configuration ───────────────────────────────────────────────────
+# Everything here is off by default, so running locally behaves exactly as
+# before: the user supplies their own key and all tools are available.
+# A public deployment sets DEMO_MODE=true and provides OPENAI_API_KEY.
+
+def _env_flag(name: str) -> bool:
+    return os.environ.get(name, "").strip().lower() in ("1", "true", "yes", "on")
+
+DEMO_MODE           = _env_flag("DEMO_MODE")
+SERVER_API_KEY      = os.environ.get("OPENAI_API_KEY", "").strip()
+RATE_LIMIT_PER_HOUR = int(os.environ.get("RATE_LIMIT_PER_HOUR", "30"))
+SEED_ON_BOOT        = int(os.environ.get("SEED_ON_BOOT", "0"))
+
+
+def _client_ip() -> str:
+    forwarded = request.headers.get("X-Forwarded-For", "")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.remote_addr or "unknown"
+
+
+# Per-IP sliding window. Enforced only in demo mode, where the server pays
+# for every request. Held in memory, so run a single worker for it to be exact.
+_rate_buckets: dict[str, list[float]] = {}
+
+def _rate_limited() -> bool:
+    if not DEMO_MODE:
+        return False
+    now    = time.time()
+    bucket = _rate_buckets.setdefault(_client_ip(), [])
+    cutoff = now - 3600
+    bucket[:] = [t for t in bucket if t > cutoff]
+    if len(bucket) >= RATE_LIMIT_PER_HOUR:
+        return True
+    bucket.append(now)
+    return False
+
+
+def _resolve_api_key(client_key: str) -> tuple[str, str | None]:
+    """In demo mode the server's own key is used and the client's is ignored."""
+    if DEMO_MODE:
+        if not SERVER_API_KEY:
+            return "", "Demo mode is enabled but the server has no OPENAI_API_KEY configured."
+        return SERVER_API_KEY, None
+    if not client_key:
+        return "", "OpenAI API key is required."
+    return client_key, None
+
+
+def _maybe_seed_on_boot() -> None:
+    """Hosts with an ephemeral disk lose ChromaDB on redeploy; refill it."""
+    if SEED_ON_BOOT <= 0:
+        return
+    try:
+        import seed_database
+        seed_database.seed_database(SEED_ON_BOOT)
+    except Exception as e:
+        print(f"[WARN] Seed on boot failed: {e}")
+
+_maybe_seed_on_boot()
 
 # Per-session conversation history, persisted to disk so the agent
 # remembers conversations across server restarts.
@@ -51,14 +114,22 @@ def index():
 @app.route("/api/chat", methods=["POST"])
 def chat():
     data = request.get_json(force=True)
-    api_key    = data.get("api_key", "").strip()
+    client_key = data.get("api_key", "").strip()
     patient_id = data.get("patient_id", "default").strip()
     message    = data.get("message", "").strip()
 
-    if not api_key:
-        return jsonify({"error": "OpenAI API key is required."}), 400
     if not message:
         return jsonify({"error": "Message cannot be empty."}), 400
+
+    if _rate_limited():
+        return jsonify({
+            "error": f"Demo rate limit reached ({RATE_LIMIT_PER_HOUR} messages/hour). "
+                     "Please try again later, or run MedAgent locally with your own API key."
+        }), 429
+
+    api_key, key_error = _resolve_api_key(client_key)
+    if key_error:
+        return jsonify({"error": key_error}), 400
 
     # Retrieve or create session history
     history = SESSION_HISTORY.setdefault(patient_id, [])
@@ -83,6 +154,17 @@ def chat():
     _save_sessions()
 
     return jsonify(result)
+
+
+@app.route("/api/config", methods=["GET"])
+def client_config():
+    """Lets the UI adapt: hide the key field and delete tool in a public demo."""
+    return jsonify({
+        "demo_mode":           DEMO_MODE,
+        "requires_api_key":    not DEMO_MODE,
+        "destructive_enabled": not DEMO_MODE,
+        "rate_limit_per_hour": RATE_LIMIT_PER_HOUR if DEMO_MODE else None,
+    })
 
 
 @app.route("/api/rag/stats", methods=["GET"])
@@ -158,10 +240,16 @@ def analyze_report():
     data       = request.get_json(force=True)
     file_type  = (data.get("type") or "image").lower()
     file_b64   = data.get("file", "")
-    api_key    = data.get("api_key", "").strip()
+    client_key = data.get("api_key", "").strip()
 
     if not file_b64:
         return jsonify({"error": "No file data provided."}), 400
+
+    if _rate_limited():
+        return jsonify({
+            "error": f"Demo rate limit reached ({RATE_LIMIT_PER_HOUR} requests/hour). "
+                     "Please try again later."
+        }), 429
 
     # Strip optional data-URL prefix
     if "," in file_b64:
@@ -199,7 +287,8 @@ def analyze_report():
             return jsonify({"error": f"PDF parsing failed: {e}"}), 500
 
     # ── Image branch (OpenCV + GPT-4o Vision) ────────────────────────────────
-    if not api_key:
+    api_key, key_error = _resolve_api_key(client_key)
+    if key_error:
         return jsonify({"error": "OpenAI API key is required for image reports."}), 400
 
     try:
@@ -245,8 +334,10 @@ def analyze_report():
 # ── Entry point ────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
+    # Hosting platforms assign a port via $PORT; default to 8080 locally.
+    port = int(os.environ.get("PORT", "8080"))
     print("=" * 55)
-    print("  MedAgent Server — http://localhost:8080")
-    print("  Open index.html in your browser or visit the URL")
+    print(f"  MedAgent Server — http://localhost:{port}")
+    print(f"  Mode: {'DEMO (server-side key, deletes disabled)' if DEMO_MODE else 'LOCAL (bring your own key)'}")
     print("=" * 55)
-    app.run(host="0.0.0.0", port=8080, debug=False)
+    app.run(host="0.0.0.0", port=port, debug=False)

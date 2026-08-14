@@ -42,6 +42,7 @@ python server.py
 
 ### 4. Open the UI
 Visit `http://localhost:8080` in your browser.
+(Set `PORT` to use a different port.)
 
 ### 5. Enter your OpenAI API Key
 Paste your key in the left panel. The system uses **gpt-4o-mini** (change in `agent.py` → `run_agent()`).
@@ -80,6 +81,43 @@ Final Response + patient record + classified labs → UI dashboard
 | `cv_engine.py` | OpenCV image preprocessing for report photos |
 | `seed_database.py` | Generates demo patients into ChromaDB |
 | `index.html` | Single-page UI: chat, tool status, patient dashboard |
+
+## 🌐 Deploying a public demo
+
+The app runs in one of two modes. **Local mode is the default** — nothing changes
+unless you set the environment variables below.
+
+| Mode | When | Behaviour |
+|------|------|-----------|
+| **Local** (default) | `python server.py` on your machine | You paste your own API key; all 6 tools available; no rate limit |
+| **Demo** | `DEMO_MODE=true` on a server | Server's key is used; visitors never enter a key; deletion disabled; rate limited per IP |
+
+### Deploy to Render (free tier)
+
+1. Push this repo to GitHub.
+2. On [render.com](https://render.com), create a **New Web Service** from the repo.
+   `render.yaml` supplies the build and start commands automatically.
+3. In the Render dashboard, add the secret env var **`OPENAI_API_KEY`**.
+   It is deliberately not stored in `render.yaml`, so the key never enters the repo.
+4. **Set a spend cap** on your OpenAI account before going live — a public demo
+   spends your credits.
+
+### Environment variables
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `DEMO_MODE` | off | Use the server's key, disable deletion, enforce rate limits |
+| `OPENAI_API_KEY` | — | Server-side key; required when `DEMO_MODE` is on |
+| `RATE_LIMIT_PER_HOUR` | `30` | Requests per IP per hour in demo mode |
+| `SEED_ON_BOOT` | `0` | Reseed ChromaDB to this many patients at startup |
+| `PORT` | `8080` | Assigned automatically by most hosts |
+
+**Note on free tiers:** the filesystem is wiped on each redeploy, so ChromaDB and
+`lab_store.json` reset. `SEED_ON_BOOT=90` repopulates demo patients at startup.
+For durable storage, attach a persistent disk or use a hosted vector database.
+
+The in-memory rate limiter is per worker, so `render.yaml` runs a single worker
+to keep the limit accurate (and to fit the free tier's memory budget).
 
 ## ⚙️ Configuration
 
