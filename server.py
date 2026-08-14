@@ -92,6 +92,31 @@ def list_patients():
     return jsonify({"patients": list(agent.PATIENT_STORE.keys()), "count": len(agent.PATIENT_STORE)})
 
 
+@app.route("/api/patients/full", methods=["GET"])
+def list_patients_full():
+    """All patient records with full fields, for the UI patient browser."""
+    patients = rag.get_all_patients()
+    return jsonify({"patients": patients, "count": len(patients)})
+
+
+@app.route("/api/lab/<patient_id>/analyzed", methods=["GET"])
+def get_lab_analyzed(patient_id: str):
+    """Latest lab entry classified against normal ranges (same shape as /api/chat's lab_results)."""
+    labs = agent.LAB_STORE.get(patient_id)
+    if not labs:
+        return jsonify({"error": f"No lab results for patient '{patient_id}'."}), 404
+    latest = labs[-1]
+    analyzed = {}
+    for k, v in latest.items():
+        if k == "timestamp":
+            continue
+        try:
+            analyzed[k] = agent._classify_value(k, float(v))
+        except (ValueError, TypeError):
+            pass
+    return jsonify(analyzed)
+
+
 @app.route("/api/analyze-report", methods=["POST"])
 def analyze_report():
     """

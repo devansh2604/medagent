@@ -455,6 +455,20 @@
   .lab-val.critical_high { color: var(--red2); }
   .lab-val.critical_low  { color: var(--red2); }
 
+  /* Patient browser */
+  .pb-item {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 7px 10px;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .pb-item:hover { border-color: var(--accent); background: rgba(0,200,255,0.05); }
+  .pb-item.selected { border-color: var(--accent); }
+  .pb-name { font-size: 12px; color: var(--text0); font-weight: 500; display: flex; justify-content: space-between; gap: 6px; }
+  .pb-meta { font-size: 10px; color: var(--text2); font-family: var(--mono); }
+
   /* Cohort analytics */
   .dx-row { padding: 4px 0; font-size: 11px; }
   .dx-head { display: flex; justify-content: space-between; margin-bottom: 3px; }
@@ -605,6 +619,14 @@
       </div>
 
       <div id="err-banner" class="error-banner"></div>
+
+      <div>
+        <div class="section-title">Patient Browser <span id="pb-count" style="float:right;color:var(--accent);"></span></div>
+        <input class="field-input" type="text" id="pb-search" placeholder="Filter by name, diagnosis, ID…" oninput="renderBrowser()" />
+        <div id="pb-list" style="margin-top:8px;max-height:220px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;">
+          <div class="empty-state">Loading…</div>
+        </div>
+      </div>
 
       <div>
         <div class="section-title">Active Tools</div>
@@ -937,6 +959,7 @@ async function sendMessage() {
 
     fetchStats();
     fetchAnalytics();
+    loadPatientBrowser();
 
   } catch (e) {
     showError('Cannot reach server. Is server.py running on port 8080?');
@@ -1030,6 +1053,57 @@ async function fetchStats() {
   } catch(e) { /* server not ready */ }
 }
 
+// ── Patient browser ───────────────────────────────────
+let ALL_PATIENTS = [];
+
+async function loadPatientBrowser() {
+  try {
+    const r = await fetch(`${API}/api/patients/full`);
+    const d = await r.json();
+    ALL_PATIENTS = d.patients || [];
+    document.getElementById('pb-count').textContent = ALL_PATIENTS.length;
+    renderBrowser();
+  } catch(e) { /* server not ready */ }
+}
+
+function renderBrowser() {
+  const q = document.getElementById('pb-search').value.trim().toLowerCase();
+  const list = document.getElementById('pb-list');
+  const filtered = ALL_PATIENTS.filter(p =>
+    !q || `${p.name} ${p.diagnosis} ${p.patient_id}`.toLowerCase().includes(q));
+  if (!filtered.length) {
+    list.innerHTML = '<div class="empty-state">No matches</div>';
+    return;
+  }
+  list.innerHTML = filtered.slice(0, 100).map(p => {
+    const g = (p.gender && p.gender !== 'N/A') ? ' · ' + escHtml(p.gender[0].toUpperCase()) : '';
+    return `
+    <div class="pb-item" data-pid="${escHtml(p.patient_id)}" onclick="selectPatient(this.dataset.pid, this)">
+      <div class="pb-name"><span>${escHtml(p.name)}</span><span class="pb-meta">${escHtml(String(p.age || ''))}${g}</span></div>
+      <div class="pb-meta">${escHtml(p.diagnosis || 'Pending')}</div>
+    </div>`;
+  }).join('');
+}
+
+async function selectPatient(pid, el) {
+  document.querySelectorAll('.pb-item.selected').forEach(x => x.classList.remove('selected'));
+  if (el) el.classList.add('selected');
+  try {
+    const r = await fetch(`${API}/api/patient/${encodeURIComponent(pid)}`);
+    if (!r.ok) { showError('Could not load patient ' + pid); return; }
+    renderPatient(await r.json());
+
+    // Point the chat session at this patient too
+    document.getElementById('patient-id').value = pid;
+    localStorage.setItem('medagent_patient_id', pid);
+
+    const lr = await fetch(`${API}/api/lab/${encodeURIComponent(pid)}/analyzed`);
+    renderLabs(lr.ok ? await lr.json() : null);
+  } catch(e) {
+    showError('Could not load patient ' + pid);
+  }
+}
+
 // ── Cohort analytics panel ────────────────────────────
 async function fetchAnalytics() {
   try {
@@ -1066,8 +1140,10 @@ async function fetchAnalytics() {
 // Load stats on page load
 fetchStats();
 fetchAnalytics();
+loadPatientBrowser();
 setInterval(fetchStats, 15000);
 setInterval(fetchAnalytics, 30000);
+setInterval(loadPatientBrowser, 30000);
 
 // ── Report Analyser (OpenCV + GPT-4o Vision / pypdf) ──
 async function analyzeReport(fileInput) {
