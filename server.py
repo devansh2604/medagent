@@ -66,6 +66,11 @@ def rag_stats():
     return jsonify(rag.get_stats())
 
 
+@app.route("/api/analytics", methods=["GET"])
+def analytics():
+    return jsonify(rag.get_aggregate_stats())
+
+
 @app.route("/api/patient/<patient_id>", methods=["GET"])
 def get_patient(patient_id: str):
     record = agent.PATIENT_STORE.get(patient_id)

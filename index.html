@@ -455,6 +455,14 @@
   .lab-val.critical_high { color: var(--red2); }
   .lab-val.critical_low  { color: var(--red2); }
 
+  /* Cohort analytics */
+  .dx-row { padding: 4px 0; font-size: 11px; }
+  .dx-head { display: flex; justify-content: space-between; margin-bottom: 3px; }
+  .dx-name { color: var(--text1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 180px; }
+  .dx-count { font-family: var(--mono); color: var(--accent); font-size: 10px; }
+  .dx-bar { height: 4px; background: var(--bg3); border-radius: 4px; overflow: hidden; }
+  .dx-fill { height: 100%; background: linear-gradient(90deg, var(--accent2), var(--accent)); border-radius: 4px; }
+
   /* Vector DB stats */
   .stat-row {
     display: flex;
@@ -648,6 +656,15 @@
             <span class="tool-badge idle" id="badge-delete">idle</span>
           </div>
 
+          <div class="tool-card" id="tool-analytics">
+            <div class="tool-icon">📊</div>
+            <div class="tool-info">
+              <div class="tool-name">patient_analytics_tool</div>
+              <div class="tool-desc">Counts by diagnosis, gender split, average age</div>
+            </div>
+            <span class="tool-badge idle" id="badge-analytics">idle</span>
+          </div>
+
         </div>
       </div>
 
@@ -726,6 +743,12 @@
         <div id="lab-panel"><div class="empty-state">No lab results yet</div></div>
       </div>
 
+      <!-- Cohort analytics -->
+      <div class="patient-section">
+        <div class="patient-section-title">Cohort Analytics</div>
+        <div id="analytics-panel"><div class="empty-state">Loading…</div></div>
+      </div>
+
       <!-- Vector DB stats -->
       <div class="patient-section">
         <div class="patient-section-title">Vector DB Stats</div>
@@ -801,7 +824,8 @@ const TOOL_MAP = {
   'rag_search_patients':      { card: 'tool-rag',        badge: 'badge-rag'        },
   'lab_test_analysis_tool':   { card: 'tool-lab',        badge: 'badge-lab'        },
   'list_all_patients':        { card: 'tool-list-all',   badge: 'badge-list-all'   },
-  'delete_patients_tool':     { card: 'tool-delete', badge: 'badge-delete' },
+  'delete_patients_tool':     { card: 'tool-delete',    badge: 'badge-delete'    },
+  'patient_analytics_tool':   { card: 'tool-analytics', badge: 'badge-analytics' },
 };
 
 function resetBadges() {
@@ -912,6 +936,7 @@ async function sendMessage() {
     if (data.lab_results)    renderLabs(data.lab_results);
 
     fetchStats();
+    fetchAnalytics();
 
   } catch (e) {
     showError('Cannot reach server. Is server.py running on port 8080?');
@@ -1005,9 +1030,44 @@ async function fetchStats() {
   } catch(e) { /* server not ready */ }
 }
 
+// ── Cohort analytics panel ────────────────────────────
+async function fetchAnalytics() {
+  try {
+    const r = await fetch(`${API}/api/analytics`);
+    const d = await r.json();
+    const panel = document.getElementById('analytics-panel');
+    if (!d.total_patients) {
+      panel.innerHTML = '<div class="empty-state">No patients yet</div>';
+      return;
+    }
+    const genders = Object.entries(d.by_gender || {})
+      .map(([g, n]) => `${escHtml(g)}: ${n}`).join(' · ');
+    const top = Object.entries(d.by_diagnosis || {}).slice(0, 5);
+    const maxCount = top.length ? top[0][1] : 1;
+    const bars = top.map(([dx, n]) => `
+      <div class="dx-row">
+        <div class="dx-head">
+          <span class="dx-name">${escHtml(dx)}</span>
+          <span class="dx-count">${n}</span>
+        </div>
+        <div class="dx-bar"><div class="dx-fill" style="width:${Math.round(n / maxCount * 100)}%"></div></div>
+      </div>`).join('');
+    panel.innerHTML = `
+      <div class="stat-row"><span class="stat-label">Total Patients</span><span class="stat-val">${d.total_patients}</span></div>
+      <div class="stat-row"><span class="stat-label">Average Age</span><span class="stat-val">${d.average_age ?? '—'}</span></div>
+      <div class="stat-row"><span class="stat-label">Gender</span><span class="stat-val" style="font-size:10px;">${genders || '—'}</span></div>
+      <div style="margin-top:8px;">
+        <div class="patient-section-title" style="margin-bottom:4px;">Top Diagnoses</div>
+        ${bars || '<div class="empty-state">—</div>'}
+      </div>`;
+  } catch(e) { /* server not ready */ }
+}
+
 // Load stats on page load
 fetchStats();
+fetchAnalytics();
 setInterval(fetchStats, 15000);
+setInterval(fetchAnalytics, 30000);
 
 // ── Report Analyser (OpenCV + GPT-4o Vision / pypdf) ──
 async function analyzeReport(fileInput) {
