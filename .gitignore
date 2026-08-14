@@ -23,6 +23,9 @@ chroma_backup_*/
 .env
 *.env
 
+# Runtime session data
+session_history.json
+
 # macOS
 .DS_Store
 

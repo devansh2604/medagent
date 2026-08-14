@@ -220,6 +220,14 @@ TOOLS = [
                         "items": {"type": "string"},
                         "description": "Required for action='bulk'. List of exact SEED-xxx patient_id strings.",
                     },
+                    "confirm": {
+                        "type": "boolean",
+                        "description": (
+                            "Required true for action='all'. Set true ONLY if the user's "
+                            "LATEST message explicitly confirms wiping all records "
+                            "(e.g. 'yes, delete everything'). Never set true preemptively."
+                        ),
+                    },
                 },
                 "required": ["action"],
             },
@@ -389,6 +397,13 @@ def _execute_tool(name: str, args: dict) -> str:
             })
 
         elif action == "all":
+            if args.get("confirm") is not True:
+                return json.dumps({
+                    "status": "confirmation_required",
+                    "message": "Refused: deleting ALL records requires confirm=true, which may "
+                               "only be set after the user explicitly confirms in their latest "
+                               "message. Ask the user to confirm first.",
+                })
             deleted_count = rag.delete_all_patients()
             PATIENT_STORE.clear()
             LAB_STORE.clear()
@@ -519,7 +534,8 @@ WHEN TO CALL EACH TOOL:
                          Step 2: extract the IDs at the requested list positions
                          Step 3: call delete_patients_tool(action='bulk', patient_ids=[...real IDs...])
                          NEVER pass position numbers like "100" — always pass real SEED-xxx IDs
-    action='all'     → "delete everything" / "wipe all" — ONLY after user explicitly confirms
+    action='all'     → "delete everything" / "wipe all" — first ask the user to confirm; only when
+                       their LATEST message explicitly confirms, call again with confirm=true
 - lab_test_analysis_tool (action=store)   → user provides lab values
 - lab_test_analysis_tool (action=analyze) → user asks about their current/latest lab results
 - lab_test_analysis_tool (action=history) → user asks about trends, changes, "how many times", "has X changed", "compare", "over time", "previous results"

@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
+import json
 import os
 import base64
 import agent
@@ -15,8 +16,29 @@ import cv_engine
 app = Flask(__name__, static_folder=".")
 CORS(app)
 
-# Per-session conversation history (in-memory, keyed by patient_id)
-SESSION_HISTORY: dict[str, list[dict]] = {}
+# Per-session conversation history, persisted to disk so the agent
+# remembers conversations across server restarts.
+_SESSION_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "session_history.json")
+
+def _load_sessions() -> dict:
+    if os.path.exists(_SESSION_PATH):
+        try:
+            with open(_SESSION_PATH, "r") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+    return {}
+
+def _save_sessions() -> None:
+    tmp_path = _SESSION_PATH + ".tmp"
+    try:
+        with open(tmp_path, "w") as f:
+            json.dump(SESSION_HISTORY, f, indent=2)
+        os.replace(tmp_path, _SESSION_PATH)
+    except Exception as e:
+        print(f"[WARN] Could not save session_history.json: {e}")
+
+SESSION_HISTORY: dict[str, list[dict]] = _load_sessions()
 
 
 # ── Routes ─────────────────────────────────────────────────────────────────────
@@ -57,6 +79,8 @@ def chat():
     # Keep history bounded (last 20 turns = 40 messages)
     if len(history) > 40:
         SESSION_HISTORY[patient_id] = history[-40:]
+
+    _save_sessions()
 
     return jsonify(result)
 

@@ -921,6 +921,15 @@ async function sendMessage() {
   if (!key)  { showError('Please enter your OpenAI API key.'); return; }
   if (!msg)  { return; }
 
+  // Extra safety net: deleting the whole database needs a browser confirm too
+  if (/\b(delete|remove|wipe|clear)\b.*\b(all|every|everything|entire)\b.*\b(patient|record|database|data)?/i.test(msg)
+      && /\b(all|every|everything|entire)\b/i.test(msg)
+      && /\b(delete|remove|wipe|clear)\b/i.test(msg)) {
+    if (!window.confirm('This message may delete ALL patient records. Are you sure you want to send it?')) {
+      return;
+    }
+  }
+
   busy = true;
   input.value = '';
   input.style.height = '42px';
