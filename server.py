@@ -20,19 +20,20 @@ import base64
 # minutes on a small instance and starves the web workers.
 
 _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+_SEED_DB_DIR = os.path.join(_BASE_DIR, "chroma_seed")
+PREBUILT_DB_AVAILABLE = os.path.isdir(_SEED_DB_DIR)
 
 def _restore_demo_db_if_empty() -> None:
     live = os.path.join(_BASE_DIR, "chroma")
-    seed = os.path.join(_BASE_DIR, "chroma_seed")
-    if not os.path.isdir(seed):
+    if not PREBUILT_DB_AVAILABLE:
         return
     if os.path.isdir(live) and os.listdir(live):
         return
     try:
-        shutil.copytree(seed, live, dirs_exist_ok=True)
-        print("[boot] Restored prebuilt demo database from chroma_seed/")
+        shutil.copytree(_SEED_DB_DIR, live, dirs_exist_ok=True)
+        print("[boot] Restored prebuilt demo database from chroma_seed/", flush=True)
     except Exception as e:
-        print(f"[WARN] Could not restore demo database: {e}")
+        print(f"[WARN] Could not restore demo database: {e}", flush=True)
 
 _restore_demo_db_if_empty()
 
@@ -56,6 +57,17 @@ DEMO_MODE           = _env_flag("DEMO_MODE")
 SERVER_API_KEY      = os.environ.get("OPENAI_API_KEY", "").strip()
 RATE_LIMIT_PER_HOUR = int(os.environ.get("RATE_LIMIT_PER_HOUR", "30"))
 SEED_ON_BOOT        = int(os.environ.get("SEED_ON_BOOT", "0"))
+
+# Generating records by embedding is redundant once a prebuilt database ships,
+# and on a small instance it saturates the CPU for minutes and starves the web
+# workers — the service answers the first request, then goes dark.
+# The shipped database always wins, whatever SEED_ON_BOOT says. This matters
+# because hosts keep environment variables set when the service was created:
+# a stale SEED_ON_BOOT in a dashboard would otherwise silently reintroduce it.
+if PREBUILT_DB_AVAILABLE and SEED_ON_BOOT > 0:
+    print(f"[boot] Ignoring SEED_ON_BOOT={SEED_ON_BOOT}: using the prebuilt "
+          f"database in chroma_seed/ instead.", flush=True)
+    SEED_ON_BOOT = 0
 
 
 def _client_ip() -> str:

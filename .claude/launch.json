@@ -3,8 +3,7 @@
   "configurations": [
     {
       "name": "medagent",
-      "runtimeExecutable": "/Users/devv/Desktop/medagent/venv/bin/python",
-      "runtimeArgs": ["server.py"],
+      "url": "http://localhost:8080",
       "port": 8080
     }
   ]
