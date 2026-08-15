@@ -1211,15 +1211,56 @@ function renderLabs(labs) {
 }
 
 // ── Vector DB stats ───────────────────────────────────
+// A free-tier host sleeps after inactivity and takes ~40s to wake, during which
+// requests hang. Without this the panels sit on "Loading…" forever and the app
+// looks broken rather than asleep.
+const WAKE_TIMEOUT_MS = 120000;
+
+async function apiFetch(path, opts = {}) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), opts.timeout || WAKE_TIMEOUT_MS);
+  try {
+    return await fetch(`${API}${path}`, { ...opts, signal: ctrl.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+let _wakeNoticeShown = false;
+
+function showWakeNotice() {
+  if (_wakeNoticeShown) return;
+  _wakeNoticeShown = true;
+  ['pb-list', 'analytics-panel'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = '<div class="empty-state">Waking the server…<br>' +
+      'free hosting sleeps when idle, this takes up to a minute</div>';
+  });
+}
+
+function clearWakeNotice() { _wakeNoticeShown = false; }
+
+function showLoadFailed(id, what) {
+  const el = document.getElementById(id);
+  if (el) el.innerHTML = `<div class="empty-state">Could not load ${what}.<br>` +
+    `<a href="#" onclick="retryAll();return false;" style="color:var(--accent);">Retry</a></div>`;
+}
+
+function retryAll() {
+  clearWakeNotice();
+  fetchStats(); fetchAnalytics(); loadPatientBrowser();
+}
+
 async function fetchStats() {
   try {
-    const r = await fetch(`${API}/api/rag/stats`);
+    const r = await apiFetch('/api/rag/stats');
     const d = await r.json();
+    clearWakeNotice();
     document.getElementById('stat-records').textContent = d.total_records ?? '—';
     document.getElementById('stat-dims').textContent    = d.vector_dims   ?? '384';
     document.getElementById('stat-sim').textContent     = d.similarity_metric ?? 'cosine';
     document.getElementById('stat-model').textContent   = (d.model || 'MiniLM-L6').replace('all-','').replace('-v2','');
-  } catch(e) { /* server not ready */ }
+  } catch(e) { showWakeNotice(); }
 }
 
 // ── Runtime config (local vs public demo) ─────────────
@@ -1246,12 +1287,15 @@ let DISPLAYED_PID = null;  // whose record the dashboard is currently showing
 
 async function loadPatientBrowser() {
   try {
-    const r = await fetch(`${API}/api/patients/full`);
+    const r = await apiFetch('/api/patients/full');
     const d = await r.json();
+    clearWakeNotice();
     ALL_PATIENTS = d.patients || [];
     document.getElementById('pb-count').textContent = ALL_PATIENTS.length;
     renderBrowser();
-  } catch(e) { /* server not ready */ }
+  } catch(e) {
+    if (!ALL_PATIENTS.length) showLoadFailed('pb-list', 'patients');
+  }
 }
 
 function renderBrowser() {
@@ -1297,8 +1341,9 @@ async function selectPatient(pid, el) {
 // ── Cohort analytics panel ────────────────────────────
 async function fetchAnalytics() {
   try {
-    const r = await fetch(`${API}/api/analytics`);
+    const r = await apiFetch('/api/analytics');
     const d = await r.json();
+    clearWakeNotice();
     const panel = document.getElementById('analytics-panel');
     if (!d.total_patients) {
       panel.innerHTML = '<div class="empty-state">No patients yet</div>';
@@ -1328,7 +1373,7 @@ async function fetchAnalytics() {
         <div class="patient-section-title" style="margin-bottom:4px;">Top Diagnoses</div>
         ${bars || '<div class="empty-state">—</div>'}
       </div>`;
-  } catch(e) { /* server not ready */ }
+  } catch(e) { showLoadFailed('analytics-panel', 'analytics'); }
 }
 
 // Load config + stats on page load

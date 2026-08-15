@@ -14,7 +14,7 @@ services:
     # One worker keeps the in-memory rate limiter accurate and fits the
     # free tier's memory budget. The long timeout allows for multi-step
     # agent loops that make several OpenAI calls.
-    startCommand: gunicorn server:app --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 180
+    startCommand: gunicorn server:app --bind 0.0.0.0:$PORT --workers 1 --threads 2 --timeout 180 --max-requests 200 --max-requests-jitter 40
     envVars:
       - key: PYTHON_VERSION
         value: "3.11"

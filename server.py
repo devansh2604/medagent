@@ -39,7 +39,10 @@ _restore_demo_db_if_empty()
 
 import agent
 import rag
-import cv_engine
+# cv_engine (and through it OpenCV + NumPy) is imported lazily inside the
+# report-analyser route. It costs ~31MB resident and is only needed when a
+# user uploads an image, so on a small instance that memory is better left
+# free for the embedding model a semantic search has to load.
 
 app = Flask(__name__, static_folder=".")
 CORS(app)
@@ -355,6 +358,7 @@ def analyze_report():
         return jsonify({"error": "OpenAI API key is required for image reports."}), 400
 
     try:
+        import cv_engine  # deferred: pulls in OpenCV, only needed for images
         cleaned_data_url, metrics = cv_engine.preprocess_report_image(raw_bytes)
 
         from openai import OpenAI
