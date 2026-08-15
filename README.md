@@ -152,3 +152,11 @@ Always consult a licensed healthcare professional.
 - Integrate ICD-10 / SNOMED for proper diagnosis coding
 - Add audit logging for all tool calls
 - Deploy behind HTTPS with proper CORS configuration
+
+## 📄 License
+
+MIT — see [LICENSE](LICENSE).
+
+Copyright © 2026 Devansh Sharma. You're welcome to use, study and build on
+this code; the copyright notice must stay with any copy or substantial
+portion of it.
