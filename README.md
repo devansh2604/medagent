@@ -4,6 +4,7 @@ emoji: 🏥
 colorFrom: blue
 colorTo: indigo
 sdk: docker
+app_file: Dockerfile
 app_port: 7860
 pinned: false
 short_description: Agentic AI healthcare assistant with ChromaDB RAG and OpenCV report reading
