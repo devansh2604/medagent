@@ -1235,6 +1235,11 @@ async function loadConfig() {
       document.getElementById('api-key-group').style.display = 'none';
       document.getElementById('demo-notice').style.display   = 'block';
       document.getElementById('tool-delete').style.display   = 'none';
+      // The welcome copy tells visitors to enter a key they will never see.
+      const w = document.querySelector('.welcome-sub');
+      if (w) w.textContent =
+        'Describe symptoms, ask about lab results, search the 90 demo patient ' +
+        'records, or upload a medical report. No sign-up or API key needed.';
     }
   } catch(e) { /* keep local defaults */ }
 }

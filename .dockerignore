@@ -1,0 +1,16 @@
+# Keep the image small and force a clean start.
+# chroma/ is excluded deliberately: the container must restore the prebuilt
+# chroma_seed/ database on boot rather than inherit a local working copy.
+venv/
+env/
+.venv/
+chroma/
+chroma_backup_*/
+__pycache__/
+*.py[cod]
+.git/
+.gitignore
+session_history.json
+.DS_Store
+.claude/
+*.docx

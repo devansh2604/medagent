@@ -1,3 +1,14 @@
+---
+title: MedAgent
+emoji: 🏥
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+app_port: 7860
+pinned: false
+short_description: Agentic AI healthcare assistant with ChromaDB RAG and OpenCV report reading
+---
+
 # 🏥 MedAgent — AI Healthcare Agentic System
 
 An agentic AI healthcare assistant powered by OpenAI **GPT-4o-mini** with function calling, **ChromaDB** vector search (RAG) over patient records, and an **OpenCV + Vision** medical-report analyser.
