@@ -35,3 +35,6 @@ session_history.json
 # IDE
 .vscode/
 .idea/
+
+# Local editor/agent context file (content lives in ARCHITECTURE.md)
+CLAUDE.md
