@@ -12,7 +12,8 @@ from openai import OpenAI
 import rag
 
 # ── Persistence paths ─────────────────────────────────────────────────────────
-_LAB_STORE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "lab_store.json")
+_LAB_STORE_PATH = os.environ.get("MEDAGENT_LAB_STORE") or os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "lab_store.json")
 
 def _load_lab_store() -> dict:
     """Load lab results from disk. Returns empty dict if file doesn't exist."""

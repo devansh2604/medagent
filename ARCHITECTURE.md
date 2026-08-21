@@ -38,6 +38,12 @@ instead of updating.
 Exercise agent behaviour through the running UI with a live model, and say
 plainly what was not covered.
 
+`evals/` now automates the regression cases — which tool the model chose and
+whether it passed the details it claimed to. `python3 evals/test_harness.py`
+checks the checker offline and free; `OPENAI_API_KEY=sk-... python3
+evals/run_evals.py` runs the suite against a scratch copy of the database.
+See `evals/README.md`.
+
 ## Architecture
 
 `index.html` (single page, no framework) → Flask (`server.py`) → `run_agent()`
