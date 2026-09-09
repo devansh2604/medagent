@@ -5,7 +5,8 @@ expensive to rediscover by reading the code.
 
 ## Commands
 
-There is no build step, linter, or test suite. The venv is Python 3.9 and is not on PATH.
+There is no build step or linter. Offline eval tests run with the Python
+standard library. The local venv is Python 3.9 and is not on PATH.
 
 ```bash
 venv/bin/python server.py          # run locally on :8080 (own-key mode)
@@ -38,10 +39,11 @@ instead of updating.
 Exercise agent behaviour through the running UI with a live model, and say
 plainly what was not covered.
 
-`evals/` now automates the regression cases — which tool the model chose and
-whether it passed the details it claimed to. `python3 evals/test_harness.py`
-checks the checker offline and free; `OPENAI_API_KEY=sk-... python3
-evals/run_evals.py` runs the suite against a scratch copy of the database.
+`evals/` automates tool-selection, argument and persistence regression cases.
+`python3 -m unittest discover -s evals -p 'test_*.py'` checks the checker and
+runner offline. With `OPENAI_API_KEY` set, `python3 evals/run_evals.py` runs
+each live attempt in a fresh process against disposable patient and lab stores.
+Offline test success does not establish the live model's pass rate.
 See `evals/README.md`.
 
 ## Architecture
