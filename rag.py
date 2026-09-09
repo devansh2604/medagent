@@ -12,7 +12,10 @@ from collections import Counter
 # Anchored to this file, not the working directory, so the store is always the
 # same place however the app is launched (python server.py, gunicorn, a
 # different cwd) — and so the boot-time restore targets the right directory.
-DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "chroma")
+# Overridable so the eval suite can point at a scratch copy instead of the
+# real store. Defaults to the module directory, not the working directory.
+DB_PATH = os.environ.get("MEDAGENT_CHROMA_PATH") or os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "chroma")
 _client = chromadb.PersistentClient(path=DB_PATH)
 
 _collection = _client.get_or_create_collection(

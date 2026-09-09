@@ -1,18 +1,20 @@
 """
 agent.py — MedAgent: GPT-4o-mini agentic system with tool calling
-The LLM orchestrates ALL tool calls via tool_choice="auto".
+The LLM orchestrates tool calls; urgent active-patient reports require a record update.
 """
 from __future__ import annotations
 
 import json
 import os
+import re
 import uuid
 from datetime import datetime, timezone
 from openai import OpenAI
 import rag
 
 # ── Persistence paths ─────────────────────────────────────────────────────────
-_LAB_STORE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "lab_store.json")
+_LAB_STORE_PATH = os.environ.get("MEDAGENT_LAB_STORE") or os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "lab_store.json")
 
 def _load_lab_store() -> dict:
     """Load lab results from disk. Returns empty dict if file doesn't exist."""
@@ -623,6 +625,30 @@ ALWAYS:
 """
 
 
+_URGENT_SYMPTOM_TERMS = (
+    "chest pain",
+    "difficulty breathing",
+    "trouble breathing",
+    "shortness of breath",
+    "severe bleeding",
+    "uncontrolled bleeding",
+    "loss of consciousness",
+    "passed out",
+    "seizure",
+    "anaphylaxis",
+)
+
+
+def _reports_urgent_symptom(message: str) -> bool:
+    """Recognize an active patient's first-person report of a high-risk symptom."""
+    text = message.casefold()
+    first_person = re.search(
+        r"\b(?:i(?:'m| am) (?:having|experiencing)|i(?:'ve| have) (?:had|been having)|my chest)\b",
+        text,
+    )
+    return bool(first_person and any(term in text for term in _URGENT_SYMPTOM_TERMS))
+
+
 def run_agent(api_key: str, patient_id: str, message: str, history: list[dict]) -> dict:
     """
     Run one turn of the agentic loop.
@@ -673,14 +699,24 @@ def run_agent(api_key: str, patient_id: str, message: str, history: list[dict]) 
     touched_pids = []   # patient_ids actually written/read this turn
     reply_text = ""     # ensure reply_text is always defined
 
+    # In urgent situations the model sometimes jumps straight to safety advice
+    # and skips the record update. Require the record tool on the first pass;
+    # the normal loop then continues so the user still receives that advice.
+    require_urgent_update = bool(active and _reports_urgent_symptom(message))
+
     # ── Agentic loop ─────────────────────────────────────────────────────────
     MAX_ITERATIONS = 15
     for _ in range(MAX_ITERATIONS):
+        tool_choice = (
+            {"type": "function", "function": {"name": "patient_record_tool"}}
+            if require_urgent_update else "auto"
+        )
+        require_urgent_update = False
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=messages,
             tools=active_tools(),
-            tool_choice="auto",
+            tool_choice=tool_choice,
             temperature=0.4,
             max_tokens=4096,
         )

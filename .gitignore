@@ -38,3 +38,6 @@ session_history.json
 
 # Local editor/agent context file (content lives in ARCHITECTURE.md)
 CLAUDE.md
+
+# Eval artefacts
+evals/__pycache__/
