@@ -72,6 +72,7 @@ def _build_record(metadata: dict, text: str) -> dict:
     # Only fall back to text parsing if the key clinical fields are absent
     parsed = _parse_text_fields(text) if not metadata.get("diagnosis") else {}
     return {
+        **({"archive_id": metadata["archive_id"]} if metadata.get("archive_id") else {}),
         "patient_id":      metadata.get("patient_id", ""),
         "name":            metadata.get("name")            or parsed.get("name",            "Unknown"),
         "age":             metadata.get("age")             or parsed.get("age",             "N/A"),
@@ -93,6 +94,7 @@ def upsert_patient(patient_id: str, record: dict) -> None:
         ids=[patient_id],
         documents=[text],
         metadatas=[{
+            **({"archive_id": record["archive_id"]} if record.get("archive_id") else {}),
             "patient_id":      patient_id,
             "name":            str(record.get("name",            "")),
             "age":             str(record.get("age",             "")),

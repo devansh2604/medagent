@@ -802,6 +802,17 @@
         </div>
       </div>
 
+      <section id="report-archive" hidden>
+        <div class="section-title">Saved reports</div>
+        <div id="archive-patient" class="hint"></div>
+        <input id="archive-password" type="password" aria-label="Archive token" placeholder="Archive token">
+        <button id="archive-unlock" type="button">Unlock archive</button>
+        <label id="archive-upload" hidden>Save a report to this patient
+          <input id="archive-file" type="file" accept=".pdf,.png,.jpg,.jpeg">
+        </label>
+        <div id="archive-list"></div>
+      </section>
+
       <!-- ── Report Analyser (OpenCV + Vision) ── -->
       <div>
         <div class="section-title">Report Analyser</div>
@@ -1129,6 +1140,7 @@ document.getElementById('msg-input').addEventListener('input', function() {
 function renderPatient(rec) {
   const info = document.getElementById('patient-info');
   DISPLAYED_PID = rec.patient_id || null;
+  refreshArchive();
   const age    = rec.age    && rec.age    !== 'N/A' ? rec.age : null;
   const gender = rec.gender && rec.gender !== 'N/A' ? String(rec.gender) : null;
   const sub    = [age ? `${escHtml(String(age))} yrs` : null,
@@ -1167,6 +1179,7 @@ function renderPatient(rec) {
 // patient's record and lab values can't linger in the panel.
 function clearPatientDashboard() {
   DISPLAYED_PID = null;
+  refreshArchive();
   SELECTED_PID  = null;
   document.getElementById('patient-info').innerHTML =
     '<div class="empty-state">No patient record yet</div>';
@@ -1223,12 +1236,92 @@ async function fetchStats() {
 }
 
 // ── Runtime config (local vs public demo) ─────────────
+let archiveEnabled = false;
+let archiveToken = '';
+const archiveFile = document.getElementById('archive-file');
+const archiveList = document.getElementById('archive-list');
+let archiveRevision = 0;
+
+async function archiveRequest(pid, suffix = '', options = {}) {
+  const response = await fetch('/api/reports/' + encodeURIComponent(pid) + suffix, {
+    ...options, headers: {...options.headers, Authorization: 'Bearer ' + archiveToken}
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    if (response.status === 403) archiveToken = '';
+    throw new Error(data.error || 'Report archive request failed.');
+  }
+  return data;
+}
+
+async function refreshArchive() {
+  const revision = ++archiveRevision;
+  const pid = DISPLAYED_PID;
+  document.getElementById('report-archive').hidden = !archiveEnabled || !pid;
+  archiveList.replaceChildren();
+  archiveFile.value = '';
+  document.getElementById('archive-upload').hidden = true;
+  document.getElementById('archive-password').hidden = !!archiveToken;
+  document.getElementById('archive-unlock').hidden = !!archiveToken;
+  if (!archiveEnabled || !pid) return;
+  document.getElementById('archive-patient').textContent = 'Patient ' + pid;
+  if (!archiveToken) return;
+  try {
+    const reports = await archiveRequest(pid);
+    if (revision !== archiveRevision) return;
+    document.getElementById('archive-upload').hidden = false;
+    if (!reports.length) archiveList.textContent = 'No saved reports.';
+    for (const report of reports) {
+      const button = document.createElement('button');
+      button.textContent = report.name + ' · ' + new Date(report.saved).toLocaleDateString();
+      button.onclick = async () => {
+        try {
+          const data = await archiveRequest(pid, '/' + report.id);
+          if (revision === archiveRevision) window.location.assign(data.url);
+        } catch (error) { showError(error.message); }
+      };
+      archiveList.append(button);
+    }
+  } catch (error) {
+    if (revision !== archiveRevision) return;
+    archiveList.textContent = error.message;
+    document.getElementById('archive-password').hidden = !!archiveToken;
+    document.getElementById('archive-unlock').hidden = !!archiveToken;
+  }
+}
+
+document.getElementById('archive-unlock').onclick = () => {
+  const token = document.getElementById('archive-password');
+  archiveToken = token.value;
+  token.value = '';
+  refreshArchive();
+};
+
+archiveFile.onchange = async () => {
+  const file = archiveFile.files[0];
+  const pid = DISPLAYED_PID;
+  archiveFile.value = '';
+  if (!file || !pid) return;
+  if (file.size > 10 * 1024 * 1024) { showError('Maximum report size is 10 MiB.'); return; }
+  archiveFile.disabled = true;
+  try {
+    await archiveRequest(pid, '', {method: 'PUT', body: file, headers: {
+      'X-Report-ID': crypto.randomUUID(),
+      'X-Report-Name': file.name.replace(/[^a-zA-Z0-9._ -]/g, '_')
+    }});
+    if (pid === DISPLAYED_PID) await refreshArchive();
+  } catch (error) { showError(error.message); }
+  finally { archiveFile.disabled = false; }
+};
+
 let DEMO_MODE = false;
 
 async function loadConfig() {
   try {
     const r = await fetch(`${API}/api/config`);
     const c = await r.json();
+    archiveEnabled = !!c.report_archive;
+    refreshArchive();
     DEMO_MODE = !!c.demo_mode;
     if (DEMO_MODE) {
       // The server holds the key; asking visitors for one would be wrong.
