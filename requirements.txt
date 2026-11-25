@@ -6,3 +6,4 @@ opencv-python-headless>=4.9.0
 numpy>=1.26.0
 pypdf>=4.0.0
 gunicorn>=22.0.0
+boto3>=1.35

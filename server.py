@@ -39,7 +39,7 @@ _restore_demo_db_if_empty()
 
 import agent
 import rag
-import cv_engine
+import report_archive
 
 app = Flask(__name__, static_folder=".")
 CORS(app)
@@ -54,6 +54,8 @@ def _env_flag(name: str) -> bool:
     return os.environ.get(name, "").strip().lower() in ("1", "true", "yes", "on")
 
 DEMO_MODE           = _env_flag("DEMO_MODE")
+app.config["DEMO_MODE"] = DEMO_MODE
+app.register_blueprint(report_archive.archive)
 SERVER_API_KEY      = os.environ.get("OPENAI_API_KEY", "").strip()
 RATE_LIMIT_PER_HOUR = int(os.environ.get("RATE_LIMIT_PER_HOUR", "30"))
 SEED_ON_BOOT        = int(os.environ.get("SEED_ON_BOOT", "0"))
@@ -224,6 +226,7 @@ def client_config():
     """Lets the UI adapt: hide the key field and delete tool in a public demo."""
     return jsonify({
         "demo_mode":           DEMO_MODE,
+        "report_archive":      not DEMO_MODE and report_archive.enabled(),
         "requires_api_key":    not DEMO_MODE,
         "destructive_enabled": not DEMO_MODE,
         "rate_limit_per_hour": RATE_LIMIT_PER_HOUR if DEMO_MODE else None,
@@ -355,6 +358,7 @@ def analyze_report():
         return jsonify({"error": "OpenAI API key is required for image reports."}), 400
 
     try:
+        import cv_engine
         cleaned_data_url, metrics = cv_engine.preprocess_report_image(raw_bytes)
 
         from openai import OpenAI

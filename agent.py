@@ -343,6 +343,7 @@ def _execute_tool(name: str, args: dict) -> str:
                 reassigned_from = pid
                 pid = f"P{uuid.uuid4().hex[:6].upper()}"
             record = {
+                "archive_id": uuid.uuid4().hex,
                 "patient_id": pid,
                 "name":            args.get("name", "Unknown"),
                 "age":             args.get("age", "N/A"),
@@ -379,7 +380,7 @@ def _execute_tool(name: str, args: dict) -> str:
 
             # Single-field form (update_field / update_value).
             field = args.get("update_field")
-            if field:
+            if field and field != "archive_id":
                 record[field] = args.get("update_value")
                 changed[field] = args.get("update_value")
 
